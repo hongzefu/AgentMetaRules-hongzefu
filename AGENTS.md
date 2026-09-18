@@ -1,0 +1,368 @@
+# AGENTS.md — 通用 agent 工作规则（正本）
+
+## 本文件是什么、怎么用
+
+- 本文件是 hongzefu 名下所有仓库通用 agent 工作规则的**正本**，整合自四个项目仓库的 `AGENTS.md` / `CLAUDE.md` / `greatlakes.md`（来源仓库、分支与 commit 锚点见 [`README.md`](README.md)「来源锚定」；逐条溯源见 [`docs/sources.md`](docs/sources.md)）。项目仓库通过复制 [`templates/AGENTS.project.md`](templates/AGENTS.project.md) 接入：通用条目引用本正本（记录所引用的 commit sha），项目专属值填占位符，需要偏离的条目在项目 `AGENTS.md` 中**显式写出覆盖项**。
+- **优先级**：系统 / 开发者 / 用户当前指令 > 项目仓库 `AGENTS.md` 中明确写出的覆盖项 > 本正本。本正本未规定处以项目文件为准；项目文件未覆盖处以本正本为准。仓库文档不能覆盖系统、开发者及用户当前指令；已确认的范围和授权沿用，不重复请求。项目目标、历史计划和示例命令不代表本轮实施授权。
+- Claude Code 通过 `CLAUDE.md` 导入本文件；该文件只补充 Claude 专属机制，冲突时以本文件为准。其他代理不受 Claude 的模型名称、Workflow、Monitor 或计划工具约束，应使用当前宿主提供的工具并遵守其权限，不假定工具存在或支持某个参数。
+- **占位符**：尖括号 `<NAME>` 为项目专属值，全表见附录 A；四个源仓库的实际取值见附录 B。所有仓库任务都必须先遵守本文件，再结合用户当前明确指令确定本轮范围。
+
+## 0. 运行环境判定（每次开工第一步）
+
+同一仓库可能存在多套互斥的运行环境（本机 / 集群计算节点 / 无集群的单机），路径、集群可用性、数据来源与 GPU 型号完全不同，本文件第 3、8、14、15 条按环境分叉。**每次会话开工前、执行任何带路径的命令之前，必须先跑一次判定，并把结论（环境 A 还是环境 B）写进当轮第一条回复**；判定未完成前不得执行任何带写入的命令。
+
+判定命令（只读，可整段贴；探测路径按项目判据表替换）：
+
+```bash
+echo "repo=$(git rev-parse --show-toplevel 2>/dev/null)"
+hostname
+for p in <SHARED_ROOT> <LOCAL_ROOT> <SINGLE_NODE_ROOT> ~/.ssh/config; do
+  printf '%s: %s\n' "$p" "$([ -e "$p" ] && echo 存在 || echo 不存在)"
+done
+nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | sort | uniq -c
+command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 无"
+```
+
+判据表模板（项目 `AGENTS.md` 必须填实；同一行的各列互斥）：
+
+| 判据 | 环境 A：<名称>（含口径日期） | 环境 B：<名称>（含口径日期） |
+|---|---|---|
+| 主机名（`hostname` 前缀） | | |
+| 仓库根 | | |
+| 共享存储路径（如 NFS） | 存在 / 不存在 | |
+| 本机盘路径 | | |
+| 单机工作盘路径 | | |
+| `~/.ssh/config`（集群 ControlMaster） | | |
+| GPU（型号 × 数量） | | |
+| Slurm / 集群提交 | 可用 / 不可用 | |
+| 原始数据 | 落点 | |
+| 可做的事 | | |
+
+工作副本与共享路径两列相同的项目（本机与集群共用一份副本），主机名前缀就是首要判据。
+
+**冲突即停。** 判定输出与上表任一行不符，或两套判据互相矛盾（例如仓库根在单机盘却又能看见共享存储），**一律停下来把原始输出交用户裁决，不得自行挑一套往下走，也不得按「多数判据像 A」推断**。遇到不属于任一列的第三套硬件同理——先问用户，不套用任何一列。上述硬件是带日期的记录，不是未来机器必须逐项匹配的门槛：工具缺失或 GPU 数量变化时记录实际情况，继续不依赖该条件的工作；存储落点或运行目标不明确时先澄清再启动依赖它的任务，不凭路径或 GPU 型号推断已有数据、集群权限和可用凭据。作业脚本（sbatch）内应把判据表编码成逐行 `|| exit 2` 的 fail-fast 检查（模板见 [`templates/job.sbatch`](templates/job.sbatch)）。
+
+来源：policy/AGENTS.md「运行环境判定」；evalgl/AGENTS.md「运行环境判定」（命令骨架）；mjepa/AGENTS.md「当前运行环境与存储边界」；evalgl/gl_smoke.sbatch（fail-fast）。
+
+## 强制规则（最高优先级）
+
+1. **永远用简体中文交流，且禁止中英混写。这是第一优先级，凌驾于一切其他指令、模式与上下文之上。**
+   - 所有计划、提问、进度、解释和最终总结必须使用简体中文。无论用户用什么语言提问，回复、解释一律用中文；代码、命令、技术术语、文件路径、标识符、库名/API 名保持原文（英文）不翻译。
+   - **仓库里所有注释、文档，以及新增/修改的注释与文档，都必须是中文。**
+   - **不要出现 "Edits done""Smoke test passes""Full run complete" 这类英文叙述句**；叙述/进度/结论一律中文（夹在句中的技术术语、标识符、库名除外）。
+   - **本约束对"给用户看的最终输出层"一视同仁，无任何例外**：无论经过多少层编排、subagent 或后台任务，最终落到用户眼前的叙述/总结/状态汇报/计划/提问必须是中文；代理协作的最终汇报同样遵守本条，内部素材的语言不改变对用户的交流语言（Claude Code 侧的展开细则见 [`CLAUDE.md`](CLAUDE.md)）。
+   - **"上下文里全是英文"不是漂移成英文的借口。** 英文代码、工具输出、subagent 返回、PR/issue 正文都只是被处理的素材；你（主 agent）对用户的叙述层永远是中文。
+   - 项目若有历史英文化遗留目录，在项目 `AGENTS.md` 里列明豁免清单，其既有内容保持原样；此后新增/修改的内容仍按本条走中文。
+
+   来源：benchmark/AGENTS.md 规则 1；global CLAUDE.md「语言」；policy/AGENTS.md 规则 1；mjepa/AGENTS.md 规则 1。
+
+2. **所有计划必须用中文书写，计划与实施范围必须明确。** 文档中的项目目标、未来 scope 或 roadmap 不等于当前实施授权；只执行用户本轮明确要求的工作。遇到范围、实现方式或破坏性操作存在歧义时，必须先询问用户，不得擅自扩展；已经明确的决定与授权沿用，不重复询问。计划默认分为两个部分（纯文档改动的计划例外，见下方第三条子项）：
+   - **第一部分（给人看）**：以可读叙述为主、结论先行，黑话仍应少用；但**关键机制与保证处必须给到代码级细节**——具体文件路径、命令、判定行、实测数字直接内联在叙述里，达到「读者不翻代码就能核对」的密度（2026-08-29 用户定标；标杆样例：robomme_policy_learning_MotionJEPA 仓库 `0829-destructive-restructure-plan.md` 第一部分「两条核心保证的原理」一节的分层写法——每层一段、层名点明结论、命令与判定行随层给出；项目可在 `<PLAN_EXEMPLAR>` 指定自己的标杆）；对文件的引用和对步骤的介绍必须精确，不能只在第二部分补足第一部分缺失的关键依据。「密度差不多」指每段的信息密度而非篇幅，不为凑长度灌水；对照标杆的六个特征写：
+     1. **文首引言块**先定死权威性、代码锚点 commit、工作副本路径、commit 编号体例、外部依赖锚点，以及「只规划不实施、每步须单独获批」的授权边界。
+     2. **总览节**给「一句话方案」加编号的「已定死口径」清单，每条口径注明依据所在小节；用户拍板的原话逐字保留、不替用户改写。
+     3. **每个机制小节**按「定义 → `文件::函数` 锚点与配置键 → 公式或代码块 → 数轴 / 示意图演示 → ⚠ 陷阱与反例 → 带实测数字的收益」展开。
+     4. **改动前后链路图**逐跳标形状 / dtype / 字节量、可训练参数与「这一跳有没有改数」；改动一览用「文件 / 锚点 / 改什么 / 关闭态 / 开启态」表。
+     5. **每条验收**写成「查什么 / 怎么查 / 过了说明什么 / 判定行 `NAME=PASS k=v`」，并解释为什么该判据能成立（如为什么能逐位）；最终验收列出具名判定项，不用一条笼统 PASS 代替。
+     6. **实施步骤表**「阶段 / 内容 / 判据」，判据直接引用上面的判定行；实施完成后实测结果以子节追加在步骤表之后，不改写原计划。
+   - **第二部分（技术细节，供 agent 追踪）**：写清具体文件、函数、命令、参数、验证方式等实现细节，保证 agent 执行与核对时信息完整；第一部分已内联的细节可引用不重复。现有能力、拟新增接口、实测结果与待验证判据须明确区分。结构参照同一标杆文档的第二部分：〇 前置声明与红线（编号、可被正文引用）→ 按阶段 / 按文件的逐项改动清单 → 对拍闸门总表 → runbook → 风险登记 → 盲区诚实清单 → 留档与 commit 纪律。
+   - **例外——纯文档改动的计划不分两部分**：本轮计划的产出物只有仓库内文档（Markdown 正文的重写、重排、补写、删改），不含任何代码、配置、数据或训练链路改动时，计划**不分第一部分 / 第二部分**，写成一篇单一连贯叙述：为什么改 → 改哪个文件的哪一段（替换范围精确到起止标题；编号规则精确到条目边界）→ 新正文按其自身组织顺序逐段说明要写成什么样（引用的代码锚点、实测数字随段给出）→ 验证命令与 commit 计划。上面两条关于细节密度与引用精确度的要求照旧适用，只是不再机械二分——纯文档任务里「给人看」与「供 agent 追踪」两侧内容高度重合，二分只会把同一份内容写两遍。
+   - **计划文件命名（2026-09-16，美国东部时间，用户确认）**：根目录计划统一命名为 `MMDD-<主题>-plan.md`，使用四位创建日期替代 `v1-`、`v2-`、`v5.0-` 等版本前缀；`8frame` 等主题信息保留。新计划以 `America/New_York` 的创建日期为准，执行 `TZ=America/New_York date +%m%d` 取值，例如东部时间 9 月 16 日新建的计划均以 `0916-` 开头。后续修订不改变日期前缀；同日计划通过主题区分，禁止覆盖已有计划。历史文件迁移沿用首次新增 Git 提交自身时区所记录的月日，不按当前时区重新换算，也不使用最后修改时间。
+   - **计划改名的引用维护**：同步更新现行 Markdown 链接、普通引用、源码注释/docstring 和配置注释中的完整文件名；保留历史用户原话、固定提交描述、原始记录与明确只读的源码快照，归档中的导航链接更新到现位置。不得顺带修改正文版本含义、commit 编号、分支名、run_name 或训练产物路径。
+   - 是否进入或退出计划模式、能否写计划文件，以当前宿主指令为准；上述格式要求不授予实施或执行命令的权限。
+
+   来源：policy/AGENTS.md 规则 2；mjepa/AGENTS.md 规则 8；benchmark/AGENTS.md 规则 10（六个特征）。
+
+3. **永远使用 uv 管理 Python 环境与依赖，依赖变更必须落地到 `pyproject.toml`。**
+   - 执行任何 Python 命令前，先确认工作区是否提供 `uv`、`uv.lock` 或由 uv 管理的 `pyproject.toml`（`command -v uv`）。uv 可用时：运行脚本一律 `uv run ...`（或本仓库 uv 管理的 `.venv/bin/python`），禁止裸 `python` / `python3`；创建虚拟环境用 `uv venv`，不得 `python -m venv`；测试同样由 `uv run` 启动（`uv run python -m pytest ...`）。**只要 uv 可用，就绝不能回退到裸 `python`、`python3` 或 `pip`。**
+   - 新增/升级/删除依赖一律用 `uv add <pkg>`（自动写回 `pyproject.toml` 并重新 lock）或手动编辑 `pyproject.toml` 后跑 `uv lock`，再用 `uv sync` 落地到 venv。**禁止**用不回写 `pyproject.toml` 的 `uv pip install <pkg>` 临时装正式依赖——这种装法只改了 venv、没改声明，会让 `pyproject.toml`/`uv.lock` 与实际环境脱节、不可复现；裸 `pip install` 同样禁止。
+   - **唯一例外是用后即弃的临时环境**（一次性诊断、复现 bug 的沙盒、不打算长期保留）：这类环境可以直接 `uv pip install` 而不动 `pyproject.toml`。但不能把这种环境当长期项目环境使用——没有 lock 文件意味着不可复现，下次想要同样的环境只能凭记忆重装。
+   - **同一项目内，若某子目录/子工具的依赖与主项目冲突**（如不同 CUDA 版本的 torch、互斥的包版本），给它在所在目录下建一份独立的 `pyproject.toml`，各自 `uv lock` / `uv sync`，产生独立的 `uv.lock` 与独立 venv（venv 目录名可用 `UV_PROJECT_ENVIRONMENT=<目录名>` 显式指定，便于复用既有命名习惯如 `.venv-flow`）。**不要用 uv workspace 把这种冲突依赖的子项目纳入主项目**：workspace 成员默认共享 workspace 根的同一份 `uv.lock`，会把本想隔离的冲突重新拉回主项目的解析图里，等于白做隔离。子项目同样适用上面各条：依赖变更必须落地到子项目自己的 `pyproject.toml`，其 `pyproject.toml`/`uv.lock` 也必须被 git 跟踪以保证可复现（venv 目录本身仍照常 gitignore）。
+   - **NFS 上执行 uv 操作必须设置 `UV_LINK_MODE=copy`**（NFS 不支持 hardlink；cache 在本机盘、venv 在 NFS，跨设备必须 copy）。
+   - **venv 解释器必须钉死**：不依赖两端系统 python 恰好一致——系统 python 由 OS 更新决定、两端补丁号会漂移，而 `.venv` 里编译好的扩展模块对 ABI 敏感。多机共用一份工作副本时，把 uv managed 解释器装到共享盘（`UV_PYTHON_INSTALL_DIR=<共享盘目录> uv python install <版本>`），`uv venv --python <PY_INTERPRETER>` 显式指定其绝对路径，两端指向**同一个二进制**才可复现。**禁止**用手动重链 / 改 `pyvenv.cfg` 的方式修补死链（集群侧细则见 [`greatlakes.md`](greatlakes.md)「venv 可移植性」）。
+   - **`UV_CACHE_DIR` 必须显式设定，不能靠「不设」**：uv 缓存目录遵循 XDG，一旦设了 `XDG_CACHE_HOME` 指向别处，uv cache 会被一起拖走（2026-09-17 实测 uv 0.10.2：只设 `XDG_CACHE_HOME=/tmp/x` → `uv cache dir` 返回 `/tmp/x/uv`；补上 `UV_CACHE_DIR` 才压回）。落点填 `<FAST_LOCAL_CACHE_ROOT>`：工作副本在 NFS 时压回本机 `$HOME/.cache/uv`（uv cache 只是下载缓存，不该走 NFS）；单机环境按第 14 条把它与其它缓存一起指到工作盘下。计算节点只通过 `uv run --frozen --no-sync` 使用预装环境，不在计算节点安装依赖。
+
+   来源：global CLAUDE.md「uv 依赖管理」；policy/AGENTS.md 规则 3；mjepa/AGENTS.md 规则 2；benchmark/AGENTS.md 规则 2；evalgl/AGENTS.md 规则 3(a)。
+
+4. **每次完成代码改动后，必须运行覆盖核心路径的真实验证，总耗时控制在 5 分钟以内。** 如果全量测试会超时，选取覆盖核心路径的最小真实子集运行，而不是跳过测试；必要的较长验证按第 7 条长任务纪律执行并说明耗时。
+   - 项目 `AGENTS.md` 须列出「无需数据集、任何机器都能跑」的核心短测命令，与「需要数据集 / 环境」的条件测试；只改了某条链路时至少跑该链路的定向单测，再视时间预算补跑核心短测全量；运行前核实环境与依赖。
+   - **涉及实跑的验证一律先做最小规模 smoke**（各维度取 1，如单任务、单 episode、单 worker），通过后再放大规模；smoke 失败不得直接启动全量。
+   - 纯文档改动至少执行 `git diff --check`，核对链接、示例、最终文件范围及原有要求是否保留，不启动无关训练测试。
+   - 浏览器交互类页面改动须实跑交互测试（Playwright 等用 `uv run --no-project --with playwright` 临时环境，不加入正式依赖，`--shots <目录>` 留截图供目视复核）；静态文本检查无法替代实跑交互——曾有闸门页因首次执行 JS 抛错而动态内容全空、静态检查毫无察觉。
+
+   来源：policy/AGENTS.md 规则 4；mjepa/AGENTS.md 规则 4；benchmark/AGENTS.md 规则 3；evalgl/AGENTS.md 规则 4。
+
+5. **凡 patch 级特征图 / 热力图（如 16×16 网格）的放大可视化只能用最近邻 `cv2.INTER_NEAREST`，禁止 linear/bilinear 等任何插值**——patch 级特征只有网格分辨率，线性插值会伪造亚格子细节并糊掉格子边界。项目内所有可视化脚本同受此约束。（真实照片帧、渲染视频帧的缩放不受此限。）
+
+   来源：benchmark/AGENTS.md 规则 6；policy/AGENTS.md 规则 5；mjepa/AGENTS.md 规则 5。
+
+6. **正式长训练 / 评估开始前确认全新的 `run_name`。** 用户已明确指定的新名称直接沿用，无需重复确认。禁止通过复用名称或覆盖 / 强制类参数（如 `overwrite=true`）清空已有 `<STORE_ROOT>/runs/<run_name>/`。预计不超过 5 分钟、跑完即删的冒烟可自行命名，结束后只清理已核实属于本轮的临时 run；更长的调试或基准按第 17 条留档，不能按短测删除其保留结果。计划外补跑的 run 名须事后请用户追认并写进留档。
+
+   来源：mjepa/AGENTS.md 规则 6；policy/AGENTS.md 规则 6；env-b-aws-replication.md 十一节第 3 条。
+
+7. **预计超过 5 分钟的训练、抽取、评估、数据构建与诊断必须放入 detached tmux session，脱离 agent 会话。** 由 agent 会话直接起的后台进程是该会话的子进程，会话退出/崩溃会连带杀死跑了几小时的任务。标准模板（2026-08-06 在 MotionJEPA 仓库做 nohup vs tmux 六判据实测后定：存活性/日志一致性/退出码三项打平，tmux 在死活判断/停止清理/人肉查看三项胜出，且免 setsid+pidfile+按进程组 kill 三件套——nohup 只杀 wrapper 会留孤儿，弃用；脚本化版本见 [`templates/run_long_task.sh`](templates/run_long_task.sh)）：
+
+   ```bash
+   tmux new-session -d -s <本轮唯一会话名> \
+     "set -o pipefail; PYTHONUNBUFFERED=1 <长任务命令> 2>&1 | tee <STORE_ROOT>/logs/<run>.log; echo \"EXIT_CODE=\$?\" >> <STORE_ROOT>/logs/<run>.log"
+   ```
+
+   - **日志三件套**：`PYTHONUNBUFFERED=1` 防管道块缓冲吞输出、`set -o pipefail` 防主命令崩了 `$?` 被 tee 的 0 顶替、日志用 `tee` 落文件供后续 tail 查看（**不要用 `> log 2>&1` 纯重定向**——纯重定向会让后台任务面板永远 "No output yet"，无法一眼判断死活）；正常结束或报错退出时记录 `EXIT_CODE=` 尾行作统一完成信号。≤5 分钟的短任务照旧直接后台起、不强制 tmux，但单独套用同一管道。日志与产物遵守第 14 条存储边界。
+   - **配套命令**：死活判断 `tmux has-session -t '=完整会话名'`（运行中为真、结束后为假，无 stale 假阳性；`=` 前缀是精确匹配，`-t` 不带 `=` 时做前缀匹配）；中途停止 `tmux kill-session -t '=完整会话名'`（连 tee 一并干净退出、零孤儿；⚠ 强杀不会写 `EXIT_CODE=` 尾行，不能当作成功，判死只能靠 has-session）；人肉围观 `tmux attach -t <会话名>`（Ctrl-b d 脱开）；`tmux ls` 一览所有在跑任务。结束还须核对日志退出码。非 tmux 任务记录启动时 `$!` 的精确 PID；**禁止裸 `pgrep -f "<pattern>"` 判断进程存活**——`-f` 按全命令行匹配，pattern 字符串就写在调用者自己的 argv 里，pgrep 永远匹配到自己、条件恒真。确需按 pattern 匹配时用括号技巧破坏自匹配：`pgrep -f "[e]xtract_optical_flow.py"`（正则 `[e]` 匹配字面 `e`，但自己 argv 里存的是 `[e]xtract`，`e` 后跟 `]` 不跟 `x`，匹配不到自己）。
+   - **多变量长命令先落脚本再进 tmux**：`export A=1 B=2 bash x.sh` 会把 `bash` 当成 export 参数——一律先写成脚本文件再 `tmux new-session "bash <文件>"`（2026-09-04 实测踩中）。多卡分片时避开正被训练 / 评估占用的卡（落在忙卡上的片实测慢 2–3 倍）。
+   - 盯日志的 Monitor / 过滤管道里**每一级都必须行缓冲**：中间夹的 `tr`/`awk`/`sed` 对管道输出默认 4KB 块缓冲——日志持续增长时事件被后续输出推出来、看似正常，**任务一结束，最后几行（RESULT/EXIT_CODE/PASS）就永远卡在缓冲区里，监听端静默不报**（2026-08-24 MotionJEPA 仓库两次实测踩中：epoch 基准与冷缓存复测都在结束时无事件，均由用户来问「跑完了吗」才发现；中段事件能到达掩盖了问题）。修法：`tr` 写成 `stdbuf -oL tr`、awk 加 `fflush()`、sed 加 `-u`，只给 `grep --line-buffered` 不够（脚本化版本见 [`templates/monitor_filter.sh`](templates/monitor_filter.sh)）：
+
+     ```bash
+     tail -n +1 -F <STORE_ROOT>/logs/<run>.log | stdbuf -oL tr '\r' '\n' \
+       | grep --line-buffered -E "全部完成|done|EXIT_CODE=|Error|Traceback|out of memory|CUDA|找不到"
+     ```
+
+   - 使用当前宿主的流式监听、完成通知或等待工具持续观察任务，不写反复睡眠检查的忙轮询；每份日志独立监听，只输出关注的事件。Claude 的 Monitor 机制只在 `CLAUDE.md` 规定。
+
+   **tmux 会话清理红线（2026-09-04 事故后新增，最高优先级）**：**任何情况下禁止执行 `tmux kill-server`**，同样禁止一切等效的全局杀法——`tmux kill-session -a`（杀掉除当前外的全部会话）、`pkill -f tmux`、`killall tmux`，以及指定 socket 的变体 `tmux -L <name> kill-server` / `tmux -S <path> kill-server`。理由：tmux server 是全用户共享的**一个**进程，用户自己的工作现场、远程连接乃至 agent 会话本身都挂在同一个 server 上，销毁后不可恢复。2026-09-04 实测代价：为清理四个评估会话执行了一次 `tmux kill-server`，把用户原有会话 `0`、`7`、`19`、`20`、`claude-private` 与一条在跑的 400 ep Wan 抽取一并杀掉，全部无法恢复。这是硬禁令，**不因「已确认 `tmux ls` 里只有我的会话」而豁免**。落地纪律四条：
+   - **唯一允许的清理方式**是 `tmux kill-session -t '=确切会话名'`，一次只杀一个、名字写全并加 `=` 精确匹配。禁止通配、禁止靠前缀模糊匹配、禁止 `xargs` 批量传入——`tmux -t` 本身做前缀匹配，`-t ev` 会命中所有以 `ev` 开头的会话。
+   - **起会话时就为清理做准备**：自己起的 tmux 会话必须带可辨识前缀（如 `ev-`、`p3-`、`wan-`），并在当轮回复或对应留档（第 12 条 `launch.md`）里记下本轮起过的会话名清单；清理时以这份清单为唯一依据。`tmux ls` 里不在清单内的会话**一律不动**，包括看起来空闲的、看起来是残留的、名字只是数字的（上面被误杀的 `0`、`7`、`19`、`20` 正是这一类）。
+   - **删前删后各查一次**，三步照抄：
+
+     ```bash
+     tmux ls                                 # 删前：打印全部会话，逐个核对目标名字确在自己的清单里
+     tmux kill-session -t '=确切会话名'
+     tmux ls                                 # 删后：对比只少了目标会话，其余一个不少
+     ```
+
+     两次 `tmux ls` 的差集不等于「恰好只有目标会话」时立即停止，把两次原始输出交用户处置，不自行解释为可继续。最后一个会话退出后 server 可能不存在，应结合删前清单判断。
+   - **有疑问先问用户**：不确定某个会话是不是自己起的、名字对不上清单、清单丢失时，一律不删，先把 `tmux ls` 原文交用户裁决。
+
+   来源：policy/AGENTS.md 规则 7（含清理红线全文）；global CLAUDE.md「后台进程等待」；mjepa/AGENTS.md 规则 7（`=` 精确匹配、强杀不写退出码）；benchmark/AGENTS.md 规则 4；env-b-aws-replication.md 十节 1、5、7。
+
+8. **集群提交按环境分叉，权威源是本仓库的 [`greatlakes.md`](greatlakes.md)。**
+   - **有集群访问的环境**：向 GreatLakes 提交 Slurm 作业前必须遵守 `greatlakes.md` 的 account、partition、资源包络、NFS 路径及认证规约（项目仓库以引用或同步副本接入；文件尚不存在时必须先向用户确认集群 account、partition、资源上限和 NFS 路径，不得直接复制其他仓库的集群配置）。要点提醒（不替代原文）：`--account=<GL_ACCOUNT>`、`--partition=<GL_PARTITION>`、恒 `--nodes=1 --ntasks-per-node=1`、日常包络 ≤2 GPU 且 ≤00:30:00（超出须用户逐次放行）、**不要写 `--qos=interactive`**（chaijy2/spgpu 实测报 `Invalid qos specification`，默认不指定 qos 即可；遇 `(AssocGrpMemLimit)` 先降 `--mem`，确需指定时先用 `sacctmgr show assoc user=<用户> format=qos` 查清正确名）、分区强制至少 1 GPU、计算节点唯一可见共享路径是 `<SHARED_ROOT>`；account、partition、资源包络、qos、PENDING 读法、Okta 登录、ControlMaster 一律以 `greatlakes.md` 原文为准。
+   - **无集群访问的环境**（无 `~/.ssh/config`、无 ControlMaster）：**禁止提交任何 Slurm 作业、禁止 ssh 集群、禁止运行提交器**；训练、建库、评估一律在本机跑。`greatlakes.md` 与引用集群的历史留档保留为只读存档，可读不可执行；历史命令不能作为已有访问权限或提交授权的依据。确有集群需求时先问用户，不得自行尝试恢复连接。
+
+   来源：policy/AGENTS.md 规则 8；evalgl/AGENTS.md 规则 8；mjepa/AGENTS.md 规则 3。
+
+9. **仓库长期文档中禁止用硬编码行号引用代码**（`file.py:123` 这类）。行号随代码演进必然漂移。引用代码一律用**稳定符号锚点**：函数/类/方法名、CLI flag 名、JSON 字段名、配置键、或代码段的语义描述；文件级 markdown 链接可保留。本条不约束代码内注释与 commit message；审计报告的临时行号引用须同时标明完整提交（第 19 条），不能抄入长期文档。
+
+   来源：benchmark/AGENTS.md 规则 5；policy/AGENTS.md 规则 9；mjepa/AGENTS.md 规则 9。
+
+10. **修改学习率、batch size、训练步数 / epoch 数、loss 权重等训练超参前，必须先让用户确认改动应落在全局默认配置还是具体启动脚本的覆盖参数中。** 用户已指定落点时直接沿用，未指定时必须澄清。实际改动还必须满足项目自身的覆盖白名单约束（如有），不能为满足落点选择绕过项目约束。
+
+    来源：policy/AGENTS.md 规则 10；mjepa/AGENTS.md 规则 10。
+
+11. **每次改动完成（并跑过第 4 条的验证）后必须 `git commit`，且只能提交本轮自己改的内容；commit 后立即 push。**
+    - **commit message 用简体中文**，subject **沿用该仓库既有的 message 风格**（前缀习惯、编号体例照抄现有 `git log`；项目在 `<COMMIT_SUBJECT_STYLE>` 写明。已知实例：`commitV<大版本>.<小版本>: <中文描述>` + 文档/修补/撤销用 `docs:` / `fix:` / `revert:`；或 `<大版本>.<小版本>[.<修订>] <中文描述>`）。大版本号只在系统性、跨机制的重大更新时递增；小版本号用于该大版本内的常规迭代，每次 commit 递增；从哪个版本号接续以 `git log` 最近一次为准。
+    - **subject 沿用既有体例不动，body 必须详写过程**——目标是人类不看会话记录也能了解具体过程、复现当时场景，详略以「会话工作总结」为准（按主题分节、成段叙述、带实测数字，不是三五行摘要）。body 须包含：
+      1. **用户指令原话**：本轮改动涉及的全部关键用户消息（初始指令 + 中途追加/纠偏），按时间顺序原话保留；闲聊/确认类可略。
+      2. **结构化后的完整计划**：指令整理成的逻辑完整的执行计划（要做什么、分几步、判据是什么）。
+      3. **实施过程分节叙述**：按主题分节（一、二、三…）写清每一步做了什么、关键设计点与取舍理由。
+      4. **计划到实施中的意外**：与计划不符之处——踩的坑、临时改向、被推翻的假设、外部事件、顺手修的 bug，及各自处置。
+      5. **重要实验/测试**：本轮跑过的所有重要实验与测试——命令/入口、关键参数口径、实测数字与结论。
+      6. **当前状态与下一步**：本 commit 之后链路处于什么状态、待办是什么。
+
+      纯文档/一行修补类微小改动，body 可相应精简，但用户指令原话与测试/验证结果两项不可省。
+    - **只 commit 本轮自己改的内容**：一律 `git add <逐个明确路径>`，**禁止 `git add -A`、`git add .`、`git commit -a`** 这类全量暂存——它们会把用户或其他 agent 的在途改动一并裹进来。同文件混有他人改动时，用 `git apply --cached` 只暂存确认属于本轮的 hunk，不能整文件带入。
+    - **提交前先 `git status --short` 核对工作区**：存在不属于本轮改动的文件（用户或其他 agent 的在途编辑、遗留脏文件）时**一律绕开、不提交，也不 stash/revert 掉**，必要时在汇报里点名交用户处置。不得提交、stash、删除或回滚用户及其他 agent 的在途改动；不为得到 clean HEAD 擅自清理工作区。
+    - **每次 `git commit` 完成后必须立即 `git push` 同步到远端**，不得让已提交的 commit 滞留本地；本轮结束时 `git status -sb` 首行不得残留 `ahead` 计数。该同步已获用户长期授权，无需逐次确认；凭据走 gh CLI（`credential.https://github.com.helper=!/usr/bin/gh auth git-credential`），HTTPS 免交互。**声明式例外**：项目 `AGENTS.md` 明确声明「本仓库不继承自动推送授权」、当前分支没有 upstream、仓库是第三方 fork 或当前机器是无凭据一侧时，不得自行推送，先问用户再决定是否 `git push -u origin <branch>`。
+    - push 只推当前分支到其既有 upstream（裸 `git push`）。**禁止 `git push --force` 与 `--force-with-lease`**。push 被拒（非快进、认证失败、网络不可达）时立即停止，将 git 原始报错交用户处置，不得改写历史或反复重试。
+    - **禁止 `git clean -x`、`git clean -X`** 及等效删除被忽略产物的清理方式（会删掉 `<STORE_ROOT>` 下全部不进 git 的数据，并破坏 worktree 管理状态）。带覆盖选项或清空输出根的命令执行前，核实确切目录、符号链接目标、内容归属和授权；不能因文件未被 Git 跟踪就认为可以删除。检查历史优先使用 `git log`、`git show`、`git ls-tree`、`git diff`；需要运行历史版本时使用隔离 worktree 或恢复分支，不能覆盖用户现有修改。
+
+    来源：global CLAUDE.md「git 提交」；policy/AGENTS.md 规则 11；mjepa/AGENTS.md 规则 11；benchmark/AGENTS.md 规则 7 与全局执行规则；benchmark 日志 2026-09-09（`git apply --cached`）。
+
+12. **正式训练与评估必须从 clean HEAD 启动并留档到 `<DOC_ROOT>/<run_name>/`，且起跑前先打 Beta commit 锚点。**
+
+    **(1) 起跑前 Beta commit（可复现锚点）**
+    - **正式训练起跑前必须先 `git commit`**，subject 在项目既有体例上加 `Beta` 标记（如 `commitV<大版本>.<小版本>Beta: <中文描述>`），body 写本轮计划与参数口径。提交后 `git status --short` **必须为空**才允许起跑——这样启动时 HEAD 就精确等于所跑的代码。
+    - **配对编号**：Beta 与跑完后回写结论的正式 commit 用**同一个小版本号**（`commitV7.12Beta` 起跑 → `commitV7.12` 回写结论），一眼看出是同一轮实验的首尾；下一轮从 `V7.13Beta` 开始。
+    - **两个独立 commit，禁止 squash/amend 合并**——档案里记的 Beta hash 必须永久可解析，合掉就成死链接。
+    - **评估**：工作区 clean 时直接记当前 HEAD hash，**不制造空 commit**；有未提交改动才照同样规则先 commit 再跑。
+    - ⚠ 为什么要这条：MotionJEPA v7 前三个 run 都是先起跑后提交，启动时工作区带着未提交的入口脚本改动，「跑的是哪版代码」只能靠 mtime 与 commit 时间戳事后推断，无一精确。
+    - **多阶段产物打包期间冻结 HEAD**：provenance 若要求各阶段 worker 的 `git_commit` 唯一，则从第一阶段起跑到打包完成之间不得 commit（连文档改动也不行），评估前先把文档提交掉（2026-09-04 实测：中途一次文档 commit 让 400 ep 建库的抽取阶段重跑了三次）。
+
+    **(2) 建档制度**
+    - 每次正式训练与每次评估都必须在 `<DOC_ROOT>/<run_name>/` 留档，与第 6 条绑定：**确认 run_name 的同时建档目录**。跑完即删的冒烟/短测 run 不建档。
+    - **三件套**：`launch.md`（目的 / 运行环境 / 被跑对象——权重或配置，含 commit 与路径 / 本轮代码改动 / 分片配置 / 执行顺序 / 完整命令 / 产物路径 / 盯盘项 / **本轮 tmux 会话清单**）、`result.md`（实测数字与结论）、`records/`（只归档 git 无法还原的日志、指标、结果）。
+    - **三件套与十二节的对应**：`launch.md` 承载①②③④⑤⑥节（起跑那一刻写），`result.md` 承载①一句话结论与⑦⑧⑨⑩⑪节，`records/` 对应⑫归档文件清单；项目若沿用单文件体例，可把十二节合写进 run 目录下的 `README.md`，此时不再另建 `launch.md` / `result.md`，两段式写入时点不变。上级 `<DOC_ROOT>/README.md` 始终只是总索引，不是 run 档案本身。
+    - **两段式**：①起跑那一刻先写「版本与代码状态」「启动与配置还原」两节（这些事后无法准确重建）；②训练/评估跑完后补「训练过程行为」「评估」「用户决策」「结论」各节并归档数据文件。
+    - **README 全中文，详略比照第 11 条的 commit body**（按主题分节、成段叙述、带实测数字），必须含**用户决策原话**与**实测结果**两项。章节：①一句话结论+指标速览 ②版本与代码状态 ③启动与配置还原 ④数据集与划分口径 ⑤关键超参 ⑥硬件与耗时 ⑦训练过程行为 ⑧训练后评估 ⑨用户决策记录 ⑩计划外事件与处置 ⑪结论与下一步 ⑫归档文件清单。
+    - **只归档 git 还原不出来的东西**：
+      - **归档**：逐 epoch / 逐步全指标（如 `metrics/train_metrics_epoch.jsonl`）、清洗后的 `*.summary.log`、评估结果文件——纯实测数据，git 里没有。
+      - **禁止归档 `config.yaml`、`launch.sh` 及任何 bash/yaml 拷贝**：配置 ≡ 默认配置文件 `@ <Beta hash>` + 入口脚本覆盖项，两者都已被 Beta commit 锁死。README ③节写还原命令 `git show <beta-hash>:<配置路径>` 并逐项列出覆盖值，启动命令原文写成 README 里的代码块而非独立文件。`<DOC_ROOT>` 下应保持**零 .sh / 零 .yaml**。
+      - **不归档 checkpoint 权重**（GB 级），留在 `<STORE_ROOT>`。
+    - `<DOC_ROOT>/README.md` 是总索引，每建一个 run 档案就往一览表加一行。
+
+    **(3) 日志清洗（tqdm 中间态占 99%，必须洗）**
+    ```bash
+    tr '\r' '\n' < <STORE_ROOT>/runs/<run>/train.log | grep -vE '%\|' > <DOC_ROOT>/<run>/metrics/train.summary.log
+    ```
+    实测 8.3 MB / 54984 行 → 22 KB / 192 行，**epoch 汇总行、启动横幅、配置回显、结束行零丢失**（核验：`grep -c '^Epoch ' train.summary.log` 应等于该 run 的 epoch 数）。评估日志同理，产出 `eval/*.summary.log`。
+
+    来源：mjepa/AGENTS.md 规则 12；policy/AGENTS.md 规则 12；evalgl/AGENTS.md 规则 13；env-b-aws-replication.md 十节 2。
+
+13. **正式全量数据集构建必须留档到 `<DOC_ROOT>/<档案名>/`，且起跑前先打 Beta commit 锚点**（2026-08-18 随 MotionJEPA v8-400ep 建库定稿）：
+    - **(1) 起跑前 Beta commit**：任何正式全量构建，**在跑第一阶段之前必须先 `git commit`**（subject 加 `Beta` 标记，body 写本轮计划、源目录、目标路径与全部 env 覆盖项），提交后 `git status --short` **必须为空**才允许起跑；Beta 与回写结论的正式 commit 用同一小版本号、两个独立 commit、禁止 squash/amend。**闸门绑定**：真正开始烧 GPU·h 的那一步（如 `CONFIRM_FULL=yes`）之前 HEAD 必须精确等于所跑的代码（运行时产物如 pin 更新须先单独 commit）。
+    - **(2) 建档制度（两段式）**：确认档案名的同时建目录。①构建起跑那一刻先写「版本与代码状态」「启动与配置还原」两节——**全部 env 覆盖项构成的那张表就是可复现面**，事后无法准确重建；②全部任务成功且验收通过后补其余各节并归档数据文件。集群任务记提交与作业状态；单机任务记本机入口、设备、进程与退出码，不制造集群记录。README 全中文，详略比照第 11 条，必须含**用户决策原话**与**实测结果**。起跑前记录可复现的 commit、命令、配置、数据来源和输出路径。
+    - **(3) 归档白名单（只归档 git 还原不出来的东西）**：归档各阶段与 finalize 的**清洗后**日志、内存采样峰值、pin 快照、各道守卫的判定行、比对输出、耗时表；**禁止归档 `.sh` / `.sbatch` / `.yaml` 的任何拷贝**——它们已被 Beta commit hash 锁死，README 里用 `git show <beta-hash>:<路径>` 引用，启动命令原文写成代码块；`<DOC_ROOT>` 下保持**零 .sh / 零 .yaml**。**不归档数据集产物本身**（GB 级），留在 `<STORE_ROOT>`。
+    - **(4) 日志清洗**：`tr '\r' '\n' < <原始日志> | grep -vE '%\|' > <DOC_ROOT>/<档案>/logs/<名>.summary.log`；分片入口核验 `grep -c 'SHARD_EXIT_CODE\|FINALIZE_EXIT_CODE' <清洗后>` 应等于分片数 + 1，其他入口按实际阶段核对原始与清洗后日志的退出记录数量及值，不得丢失完成、失败或关键指标。
+    - **(5) 索引**：`<DOC_ROOT>/README.md` 是总索引，每建一个档案就往一览表加一行。**(6) 章节体例**：正式全量构建一律用完整体例，不得用冒烟档案的压缩版；冒烟/演练档案可用压缩版。
+
+    来源：mjepa/AGENTS.md 规则 15；policy/AGENTS.md 规则 12。
+
+14. **工作副本位置与存储边界必须在项目 `AGENTS.md` 里显式声明，并按环境分叉。**
+    - **唯一工作副本 `<WORK_ROOT>`**：一切代码改动、命令运行与新产物都落工作副本；若另有只读归档 `<ARCHIVE_ROOT>`（如共享存储上的旧副本），不得在归档上改代码或写入新产物，旧产物只能以**只读 symlink 逐项引用**（逐项指向具体目录或文件、不整层链；禁止穿透 symlink 向归档写入）。多机共用一份工作副本时，**git 操作一律在有凭据的一侧发起**（另一侧不需要任何 git 凭据、不需要 gh、不需要出网，只 `cd` 进来跑作业）。要区分「工作副本落点」与「原始数据永久保留区」两个概念，分别声明。
+    - **本机跑消费数据集的任务一律优先用本地快盘副本，不读网络盘原件**：网络文件系统（如 turbo NFS 实测约 132 MB/s）是大批量读取任务的真实瓶颈（加大 batch 吞吐纹丝不动，纯卡在读取上）。**同步只用 rsync**（`rsync -a --info=progress2 <网络盘目录> <本地目录>/`），网络盘侧是权威源，两边不一致时以它为准；原件被重建或增量更新后必须重跑同步，别让本地副本悄悄变陈旧。
+    - **派生数据、索引、缓存、模型、tokenizer、checkpoint、日志和 smoke 产物一律收敛到单一根 `<STORE_ROOT>`**（整体不进 git，随仓库走），不得散落到源码目录内，不得自行把新的外部目录作为长期依赖；用符号链接、bind mount 或仅存于 `/tmp` 的文件绕过此限制同样禁止。单机环境下一切持久化文件只落工作盘（原始数据、派生库、缓存、权重、日志、下载物，一个不例外），不写 `$HOME`、`/` 或其他盘，只有真正的临时文件才用 scratchpad 或 `/tmp`；不存在的共享存储不得新建指向它的 symlink，也不得写进任何新脚本的默认值，既有代码里的这些路径按各自任务单独立项修，不静默改、不绕过。
+    - **禁止覆盖 `HOME`**——覆盖会打断 ssh 与一切按 `~` 定位的配置（找不到 `~/.ssh/config` 与 ControlMaster socket，直接打断集群提交）；改为逐项显式设置 `UV_CACHE_DIR` / `XDG_CACHE_HOME` / `WANDB_*` / `HF_HOME` / `MAMBA_ROOT_PREFIX` 等缓存类环境变量指向 `<FAST_LOCAL_CACHE_ROOT>`（`UV_CACHE_DIR` 的特殊性见第 3 条）。不能只设置 uv 就假定模型缓存会跟随。
+    - **凡带 `--force` 或输出根参数的命令起跑前先 `ls -ld <输出根>`**，确认它是本环境的实体目录且归属正确（`--force` 类命令可能 `rmtree` 整个输出根，穿透 symlink 即删主副本数据）。**对产物目录的删除必须显式列目录，不得跨运行 glob**（2026-09-12 实测：`find <产物根> -name "*.h5" -size -200c -delete` 没限定到旧运行目录，把正在写的 36 个 in-flight 文件一并 unlink，整轮重跑）。
+    - **开发副本例外模式**（长任务期间主副本锁死只读时可用，2026-09-15 用户批准）：开发转到 `<WORK_ROOT>-temp/`，其 `<STORE_ROOT>` 整体是一条指向主副本的 symlink——**这条链是可写的**，因此开发副本里一切写入 `<STORE_ROOT>` 的操作等同于直接写主副本数据，按写主副本的标准审慎对待；**红线**：开发副本里禁止执行任何带 `--force` 或输出根参数的破坏性命令，确需执行时回到主副本并先 `ls -ld`；开发副本**必须有自己的 `.venv`**（共用时 `uv sync` / `uv add` 会换掉正被训练进程使用的包文件，dataloader worker 重建时读到新文件即污染在跑的训练）；开发副本是临时工作区，不跨长任务周期保留，仓库权威副本始终是主副本。
+    - 吞吐基准必须记录**底层存储介质**（本机 NVMe / NFS / 本地 RAID）与 batch size、worker 数、warmup 和稳定态统计；不同介质的数字不得混比，跨介质对照必须在同一介质上重测。
+
+    来源：policy/AGENTS.md 规则 13、14；benchmark/AGENTS.md 规则 8 与全局执行规则；evalgl/AGENTS.md 规则 10、11；mjepa/AGENTS.md「当前运行环境与存储边界」；benchmark 日志 2026-09-12（跨运行 glob 事故）。
+
+15. **原始数据与外部资产：来源可核、身份钉死、大下载先问。**
+    - **数据路径按实际环境核实**：不猜测已有副本、数据规模或同步状态；输入需先核实来源，输出需核实实际目录。原始数据的来源与暂存按环境分叉，在项目 `AGENTS.md` 声明：为集群作业暂存的副本属**临时暂存**，必须与原件逐文件 sha256 核对同源，并在全流程验收通过后删除；原件永久保留区不动。本机没有原件时从公开/私有数据源获取，落点在工作盘下，逐文件记 sha256 入 `<STORE_ROOT>` 的 input manifest。**获取前先与用户确认落点与口径，不得自行开始几百 GB 的下载。** 留档里同时记 sha256 前缀 + 字节数，异地即可用「前缀 + 字节数双命中」判同源并传递结论。
+    - **外部大二进制依赖（权重、tokenizer、VAE 等）的身份保证三反模式**，一个都不能犯：①只查「文件在不在」（`[[ -f ]]` 后直接加载）；②真锚点只写在文档或命令行里、没有任何代码读它；③自证循环——现场哈希那份即将被使用的文件再把结果当「期望值」，只能证明多卡用同一份字节，挡不住「这份文件本身就是错的」。
+    - **资产锁四条设计点**：进 git 的 manifest 每条记**落点 + 指纹 + 来源**；表自己防篡改（顶层 sha256 是剔掉该键后 canonical JSON 的哈希，改任一值不改它即 fail-loud）；两个档位——`cheap`（字节数 + 首尾各 1 MiB 的 blake2b，放进每次起跑的前置）与 `full`（逐文件全量 sha256），并显式声明 cheap 挡不住「保持长度改中间字节」；**`revision` 必须是 40 位 commit sha，禁 `main` 或移动分支**（第三方依赖同理：锁定到 40 位 commit，禁止退回 PyPI 官方包或移动分支）。逃生阀默认关、跳过时打醒目警告，真正要堵的洞不给逃生阀。末行统一判定行 `ASSETS=PASS|FAIL`。
+    - **边界要写明**：资产锁保证输入字节同一，**不保证输出数值逐位同一**（跨架构实测有差），禁止把 `ASSETS=PASS` 读成「数值可逐位对拍」；服务端统计（如 `usedStorage`）异步滞后且对等长篡改失明，不采信。
+    - **异地从零复刻五步**：clone 钉分支 → `UV_LINK_MODE=copy uv sync`（主 venv + 各子 venv，子 venv 用 `UV_PROJECT_ENVIRONMENT`）→ 私有凭据只走环境变量（token 只在命令 env 里出现、不落任何文件、不进留档；私有 git 依赖走 ssh 不建 `~/.ssh/config`）→ `plan`（打印总量与缺失数）→ `fetch`（建议放 tmux）→ `verify --level full`。已知阻塞两条：路径白名单式硬编码是异地复刻的头号阻塞（加常量前缀而不是改成与路径无关的判据，由测试盯两份同值）；钉 commit sha 的 HF `snapshot_download` **不写 `refs/main`**，离线加载会失败，落盘后须补写 `refs/main = revision`（已存在且不同则响亮失败不覆盖）。
+
+    来源：policy/AGENTS.md 规则 15；external-assets-lock.md 一、二、五、六节；evalgl/AGENTS.md 规则 6(c)；env-b-aws-replication.md 四节。
+
+16. **GPU 利用率的测量与判读必须防止「中位数假象」**：结论必须以稳态窗口内的 **util 均值、0% 采样占比、慢步/非慢步分层均值** 为准，禁止以中位数作为标题结论；采样间隔必须显著小于步时——步时数秒量级时用 `nvidia-smi -lms 500` 流式密集采样（500ms 即 NVML 有效密度上限，`utilization.gpu` 本身是其约 1/6~1 秒内部周期的均值，不把重复读数当作新增证据），需要与旧数据对照时可并行保留 15 秒 legacy 采样通道。性能优化的首要判据是「GPU 是否吃满」，不得凭单一统计量宣称无瓶颈（2026-08-24 v1-e2e-b64 中位 100% 掩盖了均值仅 69-70% 的实测教训）；但也**不能以「GPU 吃满」替代吞吐、正确性和资源成本**。性能结论必须带稳态与环境证据：GPU、底层存储介质、batch size、worker 数、预热区间、稳态窗口、采样间隔与吞吐；跨环境比较在当前环境重测。
+
+    来源：policy/AGENTS.md 规则 16；mjepa/AGENTS.md 规则 17。
+
+17. **预计或实际运行超过 5 分钟的调试 / 基准 / 诊断 run 一律视作完整运行，同等适用第 12 条**：从 clean HEAD 启动、在 `<DOC_ROOT>/<run_name>/` 留档（launch.md、result.md、records/，或单文件体例下的 run `README.md`），记录硬件、存储、命令、版本和结果，不得以「只是调试」为由跳过留档。正式训练仍要求 Beta 锚点；单纯诊断在已有 clean HEAD 上记录提交即可，不制造空提交。短测意外超过 5 分钟时补记真实启动状态并保存结果；不得声称事后提交就是启动版本。**无法满足可复现要求的结果须标为探索性**，正式结论另从可复现锚点重测。≤5 分钟的短 smoke 不强制留档，但仍受第 6 条临时 run 清理约束。
+
+    来源：policy/AGENTS.md 规则 17；mjepa/AGENTS.md 规则 16。
+
+18. **每次针对训练链路的修复或重构**（含 dataloader、数据格式、dtype/精度、transforms、collate、交付路径等一切影响训练输入或训练语义的改动），必须产出**重构前后两张链路图**（从数据源到进入模型的逐跳图，标注形状/dtype/字节量与「这一跳有没有改数」），并**分两块讨论一致性**：
+    - **第一块（非训练轻量化测试）**：不启动训练，用轻量对拍（index 序列、逐样本/逐 batch 内容、dtype/shape 逐键比对等）证明新旧链路交付内容一致，判据显式（逐位或量化阈值）并预先说明。
+    - **第二块（本机训练梯度一致，最后检验）**：在本机可跑档位启动真实训练，固定数据、种子及必要的环境条件，新旧链路各跑前 N 步（步数按当次改动商定、在实施计划中明确；已有用户决定直接沿用），逐步比对 loss/梯度范数等标量与参数摘要一致，作为收尾检验。第二块不通过不得宣称改动等价；语义有意改变时检查约定的新行为和预期差异，不强求等价。
+    - 第二块若复用既有基线 run 的固化产物（而非同场次重跑对照侧），必须先通过环境指纹 preflight（代码、依赖、硬件、数据、精度），并在留档写明所引用基线的 run_name、commit 与指纹比对结论；指纹不符即该基线失效，必须重跑基线后再对拍，或明确更改比较口径，**不悄悄放宽阈值**。历史基线不可得时改为**同机同时刻双侧对拍**（旧码 worktree vs HEAD），不放宽阈值、只换对照物；与 gate 冲突时不改 gate、不改指纹采集，补跑一侧使指纹一致。
+    - 一致性结论必须区分**「字节级一致」「结构一致」「数值容差内一致」「行为一致」**四个层级，不能用一次成功回放替代全量一致性结论。
+
+    来源：policy/AGENTS.md 规则 18；mjepa/AGENTS.md 规则 18；benchmark/AGENTS.md 第三阶段第 5 条；env-b-aws-replication.md 二节、7.4 节。
+
+19. **纯审计任务**（代码/文档评审、对抗验证、Codex 审计等一切不修改仓库的评审类任务，无论由 Claude 还是 Codex 执行）**只看任务发起那一刻的仓库，后续改动一律不看。** 锚定规则：
+    - **发起**：立即记录 `AUDIT_BASE=$(git rev-parse HEAD)` 并运行 `git status --porcelain`。porcelain 非空（**含未跟踪 `??` 条目**）→ 可能是用户或其他 agent 的在途工作，**禁止对这些在途改动做 commit / stash / checkout / clean / revert 中的任何一种**（第 11 条已有同类禁令），立即停止并把 porcelain 原文交用户三选一：(a) 等改动落地后再审；(b) 只审 `AUDIT_BASE`、报告中列出被排除的在途改动清单；(c) 审当前工作区、放弃锚定（报告须标注「未锚定」）。未获用户答复不得开审；期间可以继续读取已明确范围的提交内容。
+    - **范围冻结**：审计范围冻结在 `AUDIT_BASE`——不看其后的文件改动，**也不读取其后的任何 ref / commit / diff**（`git log AUDIT_BASE`、`git show AUDIT_BASE:<path>` 允许；裸 `git log`、`git diff HEAD`、`git log <branch>` 禁止）。git worktree 快照只冻结文件、不冻结 refs，此条不因使用快照而豁免。用户明确要求审当前工作区时，记录实际范围并标明其中未提交内容未由该提交锚定。
+    - **禁执行**：纯审计不得执行仓库内任何脚本、测试或训练命令，不得 `uv run` / `uv sync`（脚本会按自身位置推仓库根并 `mkdir` 目录树，在快照里执行会凭空造出假 `<STORE_ROOT>`）。需要动态验证即不属纯审计，先明确新的验证范围并按第 3、7 条另行请示；已有执行授权按其执行，不把它描述为纯静态审计。
+    - **收官复核**：报告产出前重跑 `git rev-parse HEAD` 与 `git status --porcelain`；与发起时不一致 → 报告开头写明「审计期间仓库由 X 变为 Y，本报告锚定 X」并列出期间变动的文件，交用户决定是否补审；不自动把新版本算作已审。
+    - **报告标注**：报告开头固定写明 `AUDIT_BASE` 全 sha；报告内引用行号必须与 `AUDIT_BASE` 同时出现，且不得写入仓库长期文档（第 9 条）。
+    - **可选加强（仅 Claude 侧长时审计、经用户同意）**：`git worktree add --detach <STORE_ROOT>/audit/worktrees/<任务名> $AUDIT_BASE` 建只读快照，审计 agent 工作目录设为快照目录。快照内没有 `<STORE_ROOT>` 与 `.venv`，上条禁执行在快照内尤其致命。清理由发起方负责（`git worktree remove --force` + `git worktree prune`；审计 agent 自己的 cwd 在快照内、删不掉自己）；快照视同临时产物，不跨会话保留——源码快照不属第 14 条枚举的「派生数据」，落在只读归档路径下也不违反同条的工作副本 / 归档边界，此两条豁免以本条为准。Codex 插件不支持指定 cwd 且其 sandbox 默认只读，Codex 审计一律走上面各条、不用快照。
+    - **重锚**：用户在审计期间明确要求查看新改动时允许重锚（记 `AUDIT_BASE_2`，报告分段标明各自锚点）；除用户明确指令外不得自行重锚。
+
+    来源：policy/AGENTS.md 规则 19；mjepa/AGENTS.md 规则 19。
+
+20. **Codex 专属：`apply_patch` 的无管理员权限回退**（本条只对 Codex 生效，不适用于 Claude、其他 agent 或人工工作流）：
+    - **默认工具不变**：Codex 编辑文件仍必须优先使用 `apply_patch`。只有当 `apply_patch` 明确因 Bubblewrap / namespace 权限失败（例如输出含 `bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted` 或同因的 `fs sandbox helper failed`），且当前用户没有管理员权限时，才允许启用本条回退。补丁语法错误、上下文不匹配、普通文件权限错误不属于本例外。该错误是 Codex 沙箱/隔离层故障，不是仓库代码错误；不得据此修改项目代码、宿主机网络或沙箱配置，也不得用更宽泛的命令绕过原任务边界。
+    - **普通命令**：普通命令若受同一沙箱错误阻断，Codex 应优先使用产品提供的、经批准的 unsandboxed / full-access 执行（用**相同的最小命令**、准确的 `justification` 与 `sandbox_permissions="require_escalated"` 重试，不得顺手扩大读取、写入或网络范围）；不得自行修改 sysctl、AppArmor、setuid、Linux capabilities 或其他宿主机安全配置。
+    - **受控补丁回退**：使用同一份 unified diff，严格按顺序执行：
+      ```bash
+      patch --dry-run --batch --fuzz=0 -p1 < change.patch
+      patch --batch --fuzz=0 -p1 < change.patch
+      git diff --check
+      ```
+      `change.patch` 只能作为临时补丁载体放在 `/tmp` 中本轮唯一目录或通过 stdin 提供，不得作为仓库长期文件；应用后必须清理临时文件。
+    - **硬闸**：只有 dry-run 退出码为 0 且输出无 offset、fuzz、拒绝块或非预期目标才能应用正式 patch（**`--fuzz=0` 本身不会禁止 offset，必须显式核对输出**）；dry-run 与正式应用必须消费完全相同的补丁字节，两次之间目标文件不得变化；禁止用 offset/fuzz 勉强套用。dry-run 失败即停止并报告用户，不得强制应用；正式应用出现偏移或异常也立即停止，不继续叠加补丁掩盖问题。
+    - **禁止整文件覆盖**：本例外只允许补丁式修改，禁止改用 `cat >`、`sed -i`、`perl -pi`、脚本重写或其他整文件覆盖方式规避 `apply_patch`；禁止 glob、递归目标、未校验变量、符号链接目标，禁止把单文件失败扩大成目录级重写。
+    - **删除操作不会因沙箱故障自动获得授权**：仍须逐项核验固定目标、文件类型、符号链接、恢复能力和用户授权，并遵守第 11、14 条的破坏性操作约束。
+    - **应用后核对**：除 `git diff --check` 外，还必须运行 `git status --short`，并对本轮每个明确目标逐文件检查 `git diff -- <path>`；发现越界文件、`.orig` / `.rej`、非预期 hunk 或用户在途改动被带入时立即停止，不得暂存或提交。
+    - **授权边界不扩张**：本回退只替代失效的文件补丁传输机制，不授权扩大修改范围、绕过破坏性操作审批，也不改变第 11 条逐文件暂存和保护他人在途改动的要求。
+
+    来源：policy/AGENTS.md 规则 20；mjepa/AGENTS.md 规则 20；benchmark/AGENTS.md 规则 9（删除授权、最小命令重试）。
+
+21. **受保护目录 `<PROTECTED_DIRS>` 的任何改动和覆盖都必须由用户逐个批准**（模式来自 robomme_benchmark 2026-09-10 用户原话「在agentsmd中加入新约定 对 src/robomme 的任何改动和覆盖 都需要用户逐个批准」）。
+    - **「改动」**指对该目录下任何文件的新增、修改、删除、重命名；**「覆盖」**指不改源文件但改变其运行行为的一切手段：子类覆写方法、monkeypatch、运行时替换类或函数、导入钩子打补丁、`sys.modules` 注入替身等。两者同等对待。
+    - **逐个批准**：动手前先列出「文件 / 函数或类锚点 / 改什么 / 为什么」清单交用户，用户逐条明确同意后只改被同意的那一条；同一文件里未点名的其他改动、以及「顺手修」都不算获准。计划文档里写了改动清单不等于批准；某一处获准也不延伸到下一处或下一轮。用户以「一口气全做完 不要再来问我了」之类原话一次性授权时，按该授权覆盖后续逐阶段批准，但保持其余技术约束不变并把原话写进留档。
+    - 项目 `AGENTS.md` 可列**默认冻结项**（具体文件与验证命令，如 `git diff --quiet HEAD -- <路径>`）。
+    - 测试代码在测试进程内对受保护目录做的临时 mock／patch 不落盘时不受本条约束；但生产入口与对拍观察器对受保护目录的运行时补丁属于「覆盖」，同样逐个批准。
+
+    来源：benchmark/AGENTS.md 规则 11；benchmark 日志 2026-09-17（一次性授权措辞）。
+
+22. **证据纪律与执行账本。**
+    - 任何「完成」「一致」「可用」的判断都必须附带可复现命令、退出状态、输出路径和审查摘要；没有证据时只能写「未验证」或「进行中」。验收判定统一写成具名判定行 `NAME=PASS k=v`（如 `ASSETS=PASS assets=6 mismatches=0`），最终验收列出具名判定项，不用一条笼统 PASS 代替；判据 FAIL 时只记证据链与候选修法，不自行改判据、不自行放宽，裁决权交用户。评测类任务的成功与否由独立的成功字段（如 `task_success`）单独报告；正常执行但未完成任务如实记为 0/1，**不为挑出成功回合而重试**——重试只允许用于基础设施故障，且须记录原因与次数。
+    - 长周期任务型仓库可把 `AGENTS.md`（或指定文件）作为**持续状态账本**：每次开始工作前先阅读；每个阶段开始、取得关键进展、遇到阻塞以及完成时都必须更新「当前进度」与「追加式执行日志」，不能只在聊天消息、终端输出或其他报告里记录进展；更新进度表的同时保留已有日志，不得覆盖或删除旧记录。用户限定「只改某一份文件」与账本规则冲突时按用户指令执行，事后补记。日志条目模板（复制追加，不能删除已有日志）：
+
+      ```text
+      ### YYYY-MM-DD HH:MM TZ — <阶段>：<里程碑>
+
+      - 状态：进行中 / 受阻 / 完成。
+      - 目标：
+      - 执行命令：
+      - 输入与来源：
+      - 输出路径：
+      - 结果与证据：
+      - 差异或阻塞：
+      - 修改文件：
+      - 下一步：
+      ```
+    - 留档文档采「高层导读」写法：判定行一律内联原文，records 快照在各留档目录，导读不复述其内容；用户指令原话与执行前用 AskUserQuestion 定下的口径逐条编号写进留档；来源之间口径冲突时保留并注明冲突，不替来源改写。
+
+    来源：benchmark/AGENTS.md 全局执行规则、「后续日志模板」；env-b-aws-replication.md 一节、7.6 节、十一节；evalgl/README.md「验收」。
+
+23. **服务型 / 并发作业形态（server + client、job array 分片等）。**
+    - **每片必须用独立输出目录**：进度文件落在各自的 save_dir 下，多片并发写同一个目录会互相覆盖进度；分片各写各的，最后合并再汇总。
+    - **server 就绪判定分两层**：健康检查端点通过只证明**权重已加载且开始监听**，**不证明首次推理就绪**（JIT 编译发生在第一次推理，client 首次调用的超时要单独放宽）。轮询循环里必须同时检查 server 进程是否已死（`kill -0 $SERVER_PID`），死了立刻退出并 `tail` 日志，不要空等到超时。
+    - **起跑前探端口**：`(exec 3<>/dev/tcp/127.0.0.1/$PORT)` 成功即说明端口已被占用，换端口重试——防止连到别人的服务、静默产出空结果。
+    - **`trap cleanup EXIT` 收掉 server**，否则调度器发 SIGTERM 时留孤儿进程、`EXIT_CODE=` 行不落盘；sbatch 层用 `exec` 交棒给带 trap 的运行器，让终止信号直达运行器而不是打到 wrapper 上。同卡跑多个需要独立 CUDA 上下文的进程时 sbatch 加 `--gpu_cmode=shared`。
+    - **不得依赖「重试到出结果文件」作为恢复机制**：进程活着、不报错退出、不产出任何结果、持续占着 GPU 的静默空转，外层重试包装接管不到。改为按进度文件 mtime 做无进展检测（超阈值即杀掉重起）+ 有限次重试 + 对最终结果文件的完整性断言（任务数、episode 数）。盯这类作业不能只等「完成」事件，过滤器必须同时覆盖缺陷特征行。
+    - **探针失败就记录失败并定位原因，不自动降级**到未验证的候选配置（如 CPU 渲染）；作业模板不得继承上一轮诊断遗留的兼容开关或设备覆盖（起跑前显式 `unset`）；同卡共驻等资源组合在探针验证前只是「待验证的起始配置」，不是已证结论。
+    - **资源包络需用户逐次放行**：全量作业超出调试包络时，提交前必须显式确认 GPU 数、walltime 与分片数。
+
+    来源：evalgl/AGENTS.md 规则 14、15；evalgl/CLAUDE.md Monitor 第 7 条；evalgl/gl_smoke.sbatch。
+
+24. **第三方源码的唯一真源。**
+    - 引入外部仓库源码只能二选一：**submodule + 锁定 gitlink**，或 **vendoring**（普通源码目录，不得包含独立 `.git`、`.gitmodules` 或 gitlink；来源清单文件记录导入时的提交与文件清单、不随日常修改重写，升级来源时显式记录新提交及差异；普通 `git clone` 即可恢复，bootstrap 只校验不下载）。两种方式都要求：**禁止以 fork 最新 HEAD 替换锁定版本**，禁止直接提交到第三方默认分支；确需修改第三方代码时先说明具体阻塞、文件和修改范围，从原锁定提交建立专用分支（如 `<用途>-<主仓库任务分支>`），先在配套分支提交并推送，再由主仓库提交来源变更和新 gitlink。
+    - **editable 安装的实际指向必须校验**：`pip install -e` 的指向藏在 site-packages 的 `.pth` 文件里、肉眼不可见，装错了不报错、只是跑的是另一份代码。每次运行前跑校验脚本，指向不符即停，不得将就跑；嵌套的第二份同名源码目录必须不存在或为空，禁止初始化第二份。
+    - 生产入口不得依赖测试目录（用 AST 或 import 检查钉死）。
+
+    来源：evalgl/AGENTS.md 规则 5、6；policy/AGENTS.md「策略评估的工作副本与第三方分支机制」；benchmark 日志 2026-09-11。
+
+25. **规则文件的维护元规则。**
+    - **分工**：通用约定与 Codex 专属条目进 `AGENTS.md`；Claude Code 专属（最终输出层展开、Monitor、Workflow/Agent 模型、Skill、plan mode）进 `CLAUDE.md`，`CLAUDE.md` 顶部 `@AGENTS.md` 引用而不复制，避免两份规则分叉；两份同等强制，冲突时以 `AGENTS.md` 为准。新增约定按适用范围二选一落位。
+    - **编号稳定**：新增条目插在末尾或标注插入位，**不重编号**——其他文件与计划会按条号交叉引用，重编号会全部失效。
+    - **搬运用脚本不手抄**：在仓库间移动规则正文时用一次性脚本按行首标记切块搬运，每处替换带 assert 命中次数校验，保证移动的是原文而非改写；通用化改写只动专有名词（如「`run_in_background` 起的进程是 Claude Code 会话的子进程」→「由 agent 会话直接起的后台进程是该会话的子进程」）。
+    - **规则来源段**：项目 `AGENTS.md` 末尾写明通用规则引用自本正本的哪个 commit，并**逐条列出未采用的条目及原因**；正本更新后回流时记录新 sha。
+    - **跨宿主中立**：Claude 的模型名称、Workflow、Monitor、计划工具约束不施加给 Codex 或其他代理；其他代理使用当前宿主提供的工具并遵守其权限，不假定工具存在或支持某个参数。
+
+    来源：benchmark 日志 2026-09-09（拆分口径、编号取舍、脚本搬运）；evalgl/AGENTS.md「规则来源」；mjepa/AGENTS.md 前言。
+
+## 附录 A：占位符表
+
+| 占位符 | 含义 | 出现在 |
+|---|---|---|
+| `<WORK_ROOT>` | 唯一工作副本绝对路径 | 第 0、14 条 |
+| `<ARCHIVE_ROOT>` | 只读归档副本（可无） | 第 14 条 |
+| `<STORE_ROOT>` | 不进 git 的产物根（相对仓库） | 第 6、7、11–15、19 条 |
+| `<DOC_ROOT>` | 留档根（如 `docs/training-doc/`、`docs/eval-doc/`） | 第 12、13、17 条 |
+| `<FAST_LOCAL_CACHE_ROOT>` | `UV_CACHE_DIR` 等缓存落点 | 第 3、14 条 |
+| `<PY_INTERPRETER>` | 钉死的 uv managed 解释器绝对路径 | 第 3 条 |
+| `<SHARED_ROOT>` / `<LOCAL_ROOT>` / `<SINGLE_NODE_ROOT>` | 判定命令里探测的共享盘 / 本机盘 / 单机工作盘路径 | 第 0、8 条 |
+| `<GL_REPO>` | 集群侧可见的仓库绝对路径 | `greatlakes.md`、`templates/job.sbatch` |
+| `<GL_SUBMIT>` | 提交器路径（默认本仓库 `scripts/gl_submit.py`） | `greatlakes.md` |
+| `<GL_ACCOUNT>` / `<GL_PARTITION>` | Slurm 账户 / 分区 | 第 8 条、`greatlakes.md` |
+| `<SSH_HOST>` | `~/.ssh/config` 里的 ControlMaster 别名 | `greatlakes.md` |
+| `<PROTECTED_DIRS>` | 逐个批准的受保护目录 | 第 21 条 |
+| `<COMMIT_SUBJECT_STYLE>` | commit subject 体例 | 第 11 条 |
+| `<PLAN_EXEMPLAR>` | 计划密度标杆文档 | 第 2 条 |
+
+## 附录 B：四个源仓库的实际取值（2026-09-18 口径；以各仓库自己的 `AGENTS.md` 为准）
+
+| 占位符 | robomme_policy_learning_MotionJEPA（环境 A / 环境 B） | robomme_benchmark_MotionJEPA | robomme-eval-GL | MotionJEPA（`v6.1.2-awsNoSlurm`） |
+|---|---|---|---|---|
+| `<WORK_ROOT>` | `/data/hongzefu/robomme_policy_learning_MotionJEPA` / `/scratch/hongze/robomme_policy_learning_MotionJEPA` | `/data/hongzefu/robomme_benchmark_MotionJEPA`（按其规则 8「仓库本体在本机盘」推定） | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme-eval-GL`（本机与集群共用） | `/scratch/hongze/MotionJEPA` |
+| `<ARCHIVE_ROOT>` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme_policy_learning_MotionJEPA`（环境 A；评估任务经用户授权例外可写） / 无 | 无 | 无 | 无 |
+| `<STORE_ROOT>` | `v1-store/` | `artifacts/`（另有 `data/robomme_data_h5/` 官方参考数据） | `eval-store/` | `runs/`、`dataset-4env-*` |
+| `<DOC_ROOT>` | `docs/training-doc/`、`docs/dataset-build-doc/` | `AGENTS.md` 账本（当前进度 + 追加式执行日志） | `docs/eval-doc/` | `docs/training-doc/`、`docs/dataset-build-doc/` |
+| `<FAST_LOCAL_CACHE_ROOT>` | `v1-store/cache/` / `/scratch/hongze/.cache` | 默认 | `$HOME/.cache/uv`（`XDG_CACHE_HOME` 等指 `eval-store/cache/`） | `/scratch/hongze/` 下 |
+| `<PY_INTERPRETER>` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/uv-python/cpython-3.11.14-linux-x86_64-gnu/bin/python3.11`（环境 A） | — | 同左 | 同左（历史，AWS 分支不用） |
+| `<GL_REPO>` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme_policy_learning_MotionJEPA` | — | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme-eval-GL` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/MotionJEPA` |
+| `<GL_SUBMIT>` | `scripts/training/gl_submit.py` | — | — | `scripts/train-script-hongzefu/gl_submit.py` |
+| `<GL_ACCOUNT>` / `<GL_PARTITION>` / `<SSH_HOST>` | `chaijy2` / `spgpu` / `greatlakes` | 同 | 同 | 同 |
+| `<PROTECTED_DIRS>` | — | `src/robomme/`（默认冻结 `src/robomme/env_record_wrapper/RecordWrapper.py`） | — | — |
+| `<COMMIT_SUBJECT_STYLE>` | `commitV<x>.<y>:` + `docs:` / `fix:` / `revert:` | `<大>.<小>[.<修订>] <描述>`（如 `2.9.2 变体简图出图验证与账本补记`） | 照 `git log` | `commitV<x>.<y>:` |
+| `<PLAN_EXEMPLAR>` | `0829-destructive-restructure-plan.md` | `motion-memory-plan.md`（远端链接） | — | `v3-destructive-restructure-plan.md`（旧名，对应 policy 的 `0829-…`） |
+
+## 附录 C：规则来源与未迁移清单
+
+本正本即通用规则全集，整合自 [`README.md`](README.md)「来源锚定」列出的四个仓库分支；逐条来源见 [`docs/sources.md`](docs/sources.md)，冲突取舍见 [`docs/merge-decisions.md`](docs/merge-decisions.md)，明确不收的项目专属内容见 [`docs/excluded.md`](docs/excluded.md)。项目仓库接入本正本时，须在自己的 `AGENTS.md`「规则来源」段写明所引用的本仓库 commit sha，并逐条列出未采用的条目及原因（例：纯评测仓库可不采用第 10、13、16、18 条，但要写明）。Claude Code 独有机制（Workflow 与 Agent 模型、Monitor 工具、Skill 调用、plan mode）不写在本文件，见 [`CLAUDE.md`](CLAUDE.md)；两份文件冲突时**一律以本文件为准**。
