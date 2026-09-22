@@ -311,3 +311,27 @@ anon（+shmem）峰值（实测 3.85 GiB），file 页缓存永远填满剩余�
   ```
   完成信号仍靠本机 Monitor `tail -F` 那份 NFS 日志；死活判断 `ssh sled-aspen 'tmux has-session -t <任务名>'`。
 - **纪律**：只测/只跑用户授权的 worker 数（当前：单 worker）；不要动别人的进程；`/data/hongzefu` 可作本地盘，大产物仍优先落 NFS 便于本机直读。
+
+## 算力使用规则（用户 2026-09-22 定，硬规则）
+
+用户原话：「greatlakes除了长训练job 尽可能都使用1gpu占用48小时 然后在全部结束后关闭 尽可能压低为1cpu24mem
+除了maniskill多worker情形 如果报错不够 再重新提交 每次提交占位job默认尽可能用满4个超过4个都要用户审核数量
+如果1个job要超过1cpu24mem 先提交然后提醒用户 记得任务结束commit后要释放资源！ 尽可能优先先用aspen
+如果仓库都在data hongzefu上 那就不做并行 问用户」
+
+1. **优先级：aspen 优先。** 能落在 NFS turbo 上的 compute，先看 aspen 的 GPU 有没有被其他用户占用（见「aspen 常态化使用」的查占用命令），空闲就用 aspen；aspen 不可用再上 greatlakes。
+2. **greatlakes 除长训练 job 外，一律用占位 job**：`1 GPU`、`--time=48:00:00`，全部任务结束后关闭。
+3. **占位 job 规格默认压到最低：`--cpus-per-task=1 --mem=24G`。** 唯一例外是 ManiSkill 多 worker 生成（按 worker 数给 CPU）。
+   资源不够报错（OOM / CPU 争抢导致的失败）再重新提交更大的，不预先放大。
+4. **一次默认提交最多 4 个占位 job**，尽可能用满 4 个；**超过 4 个必须先让用户审核数量**。
+5. **单个 job 若需要超过 1 CPU / 24 GB：先提交，再提醒用户**（不阻塞，但必须提醒并说明原因）。
+6. **任务结束、commit 完成后必须释放资源**：`scancel` 全部占位 job，并在收尾汇报里写明已释放；`git status -sb` 干净不等于收尾完成。
+7. **仓库若都在本机 `/data/hongzefu`（不在 NFS turbo 上），不做跨机并行——先问用户**怎么处理（同步到 NFS 还是只在本机跑）。
+
+标准提交（占位 job，默认规格）：
+```bash
+sbatch --account=chaijy2 --partition=spgpu --gres=gpu:1 --cpus-per-task=1 --mem=24G --time=48:00:00 \
+       --job-name=hold-1 --output=<日志目录>/%x-%j.log --wrap='sleep infinity'
+```
+进去跑：`srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=1 --gpu_cmode=shared <脚本>`。
+ManiSkill 多 worker 例外：`--cpus-per-task=<worker 数>`，`--mem` 按需，提交后提醒用户。
