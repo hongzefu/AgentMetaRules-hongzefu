@@ -206,7 +206,17 @@ pexpect 建连要点（见 gl_submit.py / skill 的 `gl_master.py`）:匹配 `Pa
   集群紧张时的策略：先全部提交排队，若出现同节点干扰再重新提交。
 - **节点排除**：`--exclude=gl1514,gl1501,gl1508,gl1512,gl1519` 排除碰过热缓存的节点以保 cold-like 口径。
 - **抽取期间多 task 读写同一 turbo 卷（~132 MB/s 天花板）**，勿并行跑集群训练。
-- **同卡多进程**（server + client 共驻）需 `--gpu_cmode=shared`，否则第二个进程建不了 CUDA 上下文。
+- **任何需要第二个 CUDA context 的情形都要 `--gpu_cmode=shared`**——不只是同卡多进程（server + client 共驻），
+  **单进程里 torch + Vulkan/图形互操作也算**（SAPIEN / ManiSkill 的 svulkan2 建 Vulkan logical device 时为
+  CUDA-Vulkan 互操作单独开一个 context）。`sbatch --help` 明写 `--gpu_cmode=<shared|exclusive|prohibited>`
+  **默认 `exclusive`**；`Exclusive_Process` 下整卡只允许一个 context，torch 先拿到、Vulkan 被拒，报错固定是
+  `[svulkan2] CUDA device 0 is in EXCLUSIVE or EXCLUSIVE_PROCESS mode` +
+  `vk::PhysicalDevice::createDeviceUnique: ErrorInitializationFailed`。占位 job 里起步骤时 `srun` 同样要带：
+  `srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=4 --gpu_cmode=shared <脚本>`。
+  （2026-09-22 robomme_benchmark_MotionJEPANewTask 实测：不带该参数 `VULKAN_FAILS=1`，带上 `MODE=Default`、生成正常。）
+  排查这类问题**先读命令自带帮助再下"无解"结论**；已排除且不必重走的方向：换 `--gres`/去 `--exact`、换分区、
+  `nvidia-smi -c 0`（`Insufficient Permissions`）、残留进程、驱动/重启、MPS（集群未配且 Vulkan 不走 MPS）。
+  **不得用 `SAPIEN_DISABLE_RAY_TRACING=1` 绕开**——它换渲染路径，产物不再逐位可比。
 
 ## 调试 slurm 脚本
 
@@ -262,3 +272,25 @@ sbatch 正文骨架：`set -euo pipefail` → `unset` 上一轮诊断遗留的�
 「真实需要这么多内存」的证据**（47.71/48、15.77/16 两代都贴边），真实不可回收工作集看 cgroup 拆分的
 anon（+shmem）峰值（实测 3.85 GiB），file 页缓存永远填满剩余配额且可回收、零 OOM。降配时以 anon 峰值定档，
 首个新档位长 run 结束以采样峰值复核。
+
+## 分区授权与占位 job（2026-09-22 补）
+
+- **分区只用用户授权的那个**（当前所有项目：`spgpu`）。排查问题时也不要往 `gpu` / `gpu-rtx6000` / `gpu_mig40` / `viz` 提探针 job——
+  用户已明令禁止；且 compute mode 这类全局设置换分区无效。`viz`/`viz-long` 对 chaijy2 直接 `Access/permission denied`。
+- **占位 job 模式**：`sbatch --wrap='sleep infinity'`（1 GPU / 4 CPU / 32G / 48h）拿到资源后反复
+  `srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=4 --gpu_cmode=shared <脚本>` 进去跑；
+  每个 job 一条 tmux，每份日志一个 Monitor（续挂用 `tail -n 0`）。chaijy2 的 CPU 配额 80，会撞 `AssocGrpCpuLimit`。
+- **本机 sled-vail 与 aspen 都能直读集群 NFS**（`/nfs/turbo/coe-chaijy-unreplicated/...`）：产物落 NFS、比较在本机跑、不搬数据；
+  但 NFS 上逐帧读大文件很慢（144 局全字段比较 10～15 min、合并 40 GB 约 25 min），多条比较链并行只是分摊等待。
+- **删测试目录前先抠小文件**：`run.log`、`run_config.json`（hostname/GPU/驱动指纹）、`results/*.json`、`jobs/`、`logs/`、
+  合并 metadata 归到仓库再 `rm -rf`。2026-09-22 两条线的这些文件随大目录一起删了，只拦下一份。
+
+## aspen（sled 组自有机器，2026-09-22 打通）
+
+- `ssh -i ~/.ssh/id_ed25519_umich hongzefu@sled-aspen.eecs.umich.edu`——**必须显式 `-i`**（公钥文件名非默认，不带会被拒
+  `Permission denied (publickey,password)`）；校园网/VPN 内直连，校外走 `-J <uniqname>@login.itd.umich.edu`。
+- 2× RTX A6000 48 GB（Ampere GA102）、compute_mode `Default`、驱动 570.195.03（CUDA 12.8）、16 核 / 251 GB、无 Slurm、`/data` 14 T。
+- NFS 已挂载；**NFS 克隆的 `.venv` 直接可用**（python 3.11.14 / torch 2.9.1+cu128，torch 走 NFS 导入约 32 s），零环境搭建。
+- tmux 在 aspen 上起，`CUDA_VISIBLE_DEVICES=0` 锁单卡；48 局单 worker 生成约 41 min。
+- **aspen 是 robomme 原版发布集的"同机器"**：对发布集 47/48 局逐位复现（含四路图像）；需要与原版逐位对拍的验证优先排 aspen，
+  sled-vail 次之（1e-16 舍入），A40 只能做容差校验。
