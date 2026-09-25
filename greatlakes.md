@@ -321,7 +321,7 @@ anon（+shmem）峰值（实测 3.85 GiB），file 页缓存永远填满剩余�
 
 1. **优先级：aspen 优先。** 能落在 NFS turbo 上的 compute，先看 aspen 的 GPU 有没有被其他用户占用（见「aspen 常态化使用」的查占用命令），空闲就用 aspen；aspen 不可用再上 greatlakes。
 2. **greatlakes 除长训练 job 外，一律用占位 job**：`1 GPU`、`--time=48:00:00`，全部任务结束后关闭。
-3. **占位 job 规格默认压到最低：`--cpus-per-task=1 --mem=24G`。** 唯一例外是 ManiSkill 多 worker 生成（按 worker 数给 CPU）。
+3. **占位 job 规格默认压到最低：`--cpus-per-task=1 --mem=24G`。** 唯一例外是 ManiSkill 多 worker 生成（按 worker 数给 CPU，规格见第 10 条）。
    资源不够报错（OOM / CPU 争抢导致的失败）再重新提交更大的，不预先放大。
 4. **一次默认提交最多 4 个占位 job**，尽可能用满 4 个；**超过 4 个必须先让用户审核数量**。
 5. **单个 job 若需要超过 1 CPU / 24 GB：先提交，再提醒用户**（不阻塞，但必须提醒并说明原因）。
@@ -340,10 +340,23 @@ anon（+shmem）峰值（实测 3.85 GiB），file 页缓存永远填满剩余�
    不允许同一任务跨机器混跑——不同 GPU 架构的产物不可逐位比、时序不同重规划也不同，混在一批里既没法当同一份数据用，
    也没法对拍。aspen 优先只适用于**整个任务都放得下 aspen** 的情形；放不下就整批上集群。
 
+10. **凡是要在 greatlakes 上跑的工作负载一律「48 h 占位 job + `srun --overlap` 塞进去跑 + 跑完 `scancel`」，不得把工作负载本身直接 `sbatch`（用户 2026-09-25 定）。**
+    用户原话：「不要用sbatch 而是用占用job的形式 占用48小时的形式」「把以后都用占用48小时 跑完scancel 并且生成多worker需要这样大cpu/mem」。
+    - 原因：spgpu 全局常年 228/240 满卡、数百 GPU 在排队，直接 sbatch 的工作 job 起跑时间不可控；占位 job 一旦拿到席位，后续无论跑几轮都不用重新排队，跑完按 JobID `scancel` 释放。
+    - **多 worker 生成的占位规格（2026-09-25 本机实测定）**：瓶颈在 CPU 不在 GPU——单 worker 峰值内存 9 G（PatternLock 最重）、显存不到 2 G、锁 1 核只比不限核慢 1.4 倍。因此**每 worker 配 1 CPU + 12 G**，一张 A40 带 16 个 worker 毫无压力。参考规格（已批准并实提）：
+      ```bash
+      sbatch --account=chaijy2 --partition=spgpu --nodes=1 --ntasks-per-node=1 --gres=gpu:1 --gpu_cmode=shared \
+             --cpus-per-task=16 --mem=192G --time=48:00:00 --job-name=<任务>-hold-<k> \
+             --output=<日志目录>/%x_%j.out --wrap='sleep infinity'
+      ```
+      两个这样的席位（2 GPU / 32 CPU / 384 G）共 32 个 worker，折合约 22 个 RTX 6000 Ada worker，比本机 8 worker 快约 2.5 倍。塞入时每席 `--draw-workers 16 --workers 16`，并必须设 `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1`（不限线程时单 worker 会瞬时吃到 13.8 核，多 worker 同机互相踩）。
+    - 这种大 CPU/内存席位仍受第 4、5 条约束：数量超 4 个、单 job 超 1 CPU / 24 G 都要按原规则报用户；提交前先用 skill `greatlakes-usage` 看哪个节点同时有空 GPU + 足够空 CPU + 空内存，否则会 `PENDING (Resources)`（2026-09-25 实测：查询到提交之间 gl1510 的那张空卡就被别的组拿走，第二个席位只能排队）。
+    - 跑之前先在本机用进程树采样器量一次单 worker 的 RSS / CPU / 显存峰值再定 `--mem`，不要按训练 job 的 MaxRSS 贴边法估。
+
 标准提交（占位 job，默认规格）：
 ```bash
 sbatch --account=chaijy2 --partition=spgpu --gres=gpu:1 --cpus-per-task=1 --mem=24G --time=48:00:00 \
        --job-name=hold-1 --output=<日志目录>/%x-%j.log --wrap='sleep infinity'
 ```
 进去跑：`srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=1 --gpu_cmode=shared <脚本>`。
-ManiSkill 多 worker 例外：`--cpus-per-task=<worker 数>`，`--mem` 按需，提交后提醒用户。
+ManiSkill 多 worker 例外：`--cpus-per-task=<worker 数>`，`--mem=<worker 数 × 12G>`，提交后提醒用户（第 10 条）。
