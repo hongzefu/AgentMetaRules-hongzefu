@@ -20,6 +20,7 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。四个
 | [`docs/merge-decisions.md`](docs/merge-decisions.md) | 四仓库版本冲突的取舍（A–M）与口径统一清单 |
 | [`docs/excluded.md`](docs/excluded.md) | 明确不收的项目专属内容（按仓库列） |
 | [`docs/maniskill-multiprocess.md`](docs/maniskill-multiprocess.md) | ManiSkill / robomme 多进程与多 worker 生成的实测经验：`mplib` 墙钟预算导致的不可复现、跨架构不变量、夹爪元素与末段错位陷阱、官方比较器边界、吞吐、容差校验结论（2026-09-22） |
+| [`docs/codex-app-ssh-multiagent.md`](docs/codex-app-ssh-multiagent.md) | Codex SSH App 新任务 16 个子代理实测及第 17 个容量拒绝记录（2026-09-26） |
 
 ## 来源锚定
 
