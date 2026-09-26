@@ -6,7 +6,7 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。四个
 
 | 路径 | 内容 |
 |---|---|
-| [`AGENTS.md`](AGENTS.md) | **正本 1**：通用规则第 0–25 条，末尾附录 A 占位符表、附录 B 四仓库实际取值、附录 C 规则来源 |
+| [`AGENTS.md`](AGENTS.md) | **正本 1**：通用规则第 0–26 条，末尾附录 A 占位符表、附录 B 四仓库实际取值、附录 C 规则来源 |
 | [`CLAUDE.md`](CLAUDE.md) | **正本 2**：Claude Code 独有机制（`@AGENTS.md` 导入；Workflow 与 Agent 模型、Monitor、Skill、plan mode） |
 | [`greatlakes.md`](greatlakes.md) | **正本 3**：GreatLakes Slurm 提交规约通用部分（认证 / 资源 / 路径 / venv / ControlMaster 流程 / Okta / sbatch 骨架 / job array / PENDING 读法 / 放行制度） |
 | [`scripts/gl_submit.py`](scripts/gl_submit.py) | 通用提交器：两版合并，`GL_REPO` / `GL_SSH_ALIAS` / `GLUSER` / `GL_CONNECT_LOG` / `GL_PUSH_SENTINEL` 参数化，push 修法三条齐全，ControlPersist 口径 30d |

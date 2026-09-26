@@ -32,6 +32,7 @@
 | 23 服务型作业 | evalgl AGENTS 规则 14、15 | evalgl CLAUDE Monitor 第 7 条；evalgl `gl_smoke.sbatch`（`exec` 交棒、`--gpu_cmode=shared`、unset 诊断开关） |
 | 24 源码唯一真源 | evalgl AGENTS 规则 5、6 | policy AGENTS「策略评估的工作副本与第三方分支机制」；benchmark 日志 2026-09-11（AST 钉死 scripts 不依赖 tests） |
 | 25 规则维护元规则 | benchmark 日志 2026-09-09（拆分口径、编号取舍、脚本搬运） | evalgl AGENTS「规则来源」（逐条列未迁移）；mjepa AGENTS 前言（跨宿主中立） |
+| 26 仅 OpenAI Codex：积极使用多代理，保持职责与写入边界清晰 | 2026-09-26 用户要求及澄清 | [OpenAI 官方 Subagents 文档](https://learn.chatgpt.com/docs/agent-configuration/subagents) |
 | CLAUDE.md 规则来源与优先级 | policy CLAUDE | evalgl CLAUDE（去版本号）；mjepa CLAUDE（跨宿主） |
 | CLAUDE.md Workflow 与 Agent 模型 | policy CLAUDE | mjepa CLAUDE（范围不扩、中文 log/label）；benchmark CLAUDE §1（`agent()` 固定提示词） |
 | CLAUDE.md Monitor | policy CLAUDE / evalgl CLAUDE | evalgl CLAUDE 5、7（job array 每片一个、静默空转）；global（括号技巧原理）；mjepa CLAUDE（Monitor 不可用时） |
@@ -82,3 +83,4 @@
 | 2026-09-17 | benchmark「一口气全做完 不要再来问我了」一次性授权覆盖逐阶段批准 | benchmark 日志 | 第 21 条 |
 | 2026-09-17 | evalgl 分支 `v2-vail-eval-0917`：vendoring、editable 校验、第三方分支机制 | evalgl AGENTS；policy「策略评估」节 | 第 24 条 |
 | 2026-09-18 | 四仓库最新分支 HEAD 查定；本仓库建库 | 本仓库 | README「来源锚定」 |
+| 2026-09-26 | Codex 多代理积极并行、委派说明、写入隔离、模型档位与宿主并发边界 | 用户要求；OpenAI 官方 Subagents 文档 | 第 26 条 |
