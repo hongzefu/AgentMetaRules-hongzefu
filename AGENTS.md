@@ -2,10 +2,10 @@
 
 ## 本文件是什么、怎么用
 
-- 本文件是 hongzefu 名下所有仓库通用 agent 工作规则的**正本**，整合自四个项目仓库的 `AGENTS.md` / `CLAUDE.md` / `greatlakes.md`（来源仓库、分支与 commit 锚点见 [`README.md`](README.md)「来源锚定」；逐条溯源见 [`docs/sources.md`](docs/sources.md)）。项目仓库通过复制 [`templates/AGENTS.project.md`](templates/AGENTS.project.md) 接入：通用条目引用本正本（记录所引用的 commit sha），项目专属值填占位符，需要偏离的条目在项目 `AGENTS.md` 中**显式写出覆盖项**。
-- **优先级**：系统 / 开发者 / 用户当前指令 > 项目仓库 `AGENTS.md` 中明确写出的覆盖项 > 本正本。本正本未规定处以项目文件为准；项目文件未覆盖处以本正本为准。仓库文档不能覆盖系统、开发者及用户当前指令；已确认的范围和授权沿用，不重复请求。项目目标、历史计划和示例命令不代表本轮实施授权。
-- Claude Code 通过 `CLAUDE.md` 导入本文件；该文件只补充 Claude 专属机制，冲突时以本文件为准。其他代理不受 Claude 的模型名称、Workflow、Monitor 或计划工具约束，应使用当前宿主提供的工具并遵守其权限，不假定工具存在或支持某个参数。
-- **占位符**：尖括号 `<NAME>` 为项目专属值，全表见附录 A；四个源仓库的实际取值见附录 B。所有仓库任务都必须先遵守本文件，再结合用户当前明确指令确定本轮范围。
+- 本文件是 hongzefu 名下所有仓库通用 agent 工作规则的**正本**，整合自四个项目仓库的 `AGENTS.md` / `CLAUDE.md` / `greatlakes.md`（来源仓库、分支与 commit 锚点见 [`README.md`](README.md)「来源锚定」；逐条溯源见 [`docs/sources.md`](docs/sources.md)）。项目仓库以**标记块副本**接入：自带一份逐字副本、只在同步时与正本核对，平时只读仓库内的文件；接入、同步与未采用条目的记录方式见第 25 条。
+- **优先级**：系统 / 开发者 / 用户当前指令 > 项目仓库 `AGENTS.md` 中明确写出的覆盖项 > 本正本。本正本未规定处以项目文件为准；项目文件未覆盖处以本正本为准。仓库文档不能覆盖系统、开发者及用户当前指令；本轮实施范围与授权的判定见第 2 条。
+- Claude Code 通过 `CLAUDE.md` 导入本文件；两份文件的分工、冲突处理与跨宿主中立见第 25 条。
+- **占位符**：尖括号 `<NAME>` 为项目专属值，全表见附录 A；各源仓库的实际取值见附录 B。
 
 ## 0. 运行环境判定（每次开工第一步）
 
@@ -40,9 +40,11 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 
 工作副本与共享路径两列相同的项目（本机与集群共用一份副本），主机名前缀就是首要判据。
 
-**冲突即停。** 判定输出与上表任一行不符，或两套判据互相矛盾（例如仓库根在单机盘却又能看见共享存储），**一律停下来把原始输出交用户裁决，不得自行挑一套往下走，也不得按「多数判据像 A」推断**。遇到不属于任一列的第三套硬件同理——先问用户，不套用任何一列。上述硬件是带日期的记录，不是未来机器必须逐项匹配的门槛：工具缺失或 GPU 数量变化时记录实际情况，继续不依赖该条件的工作；存储落点或运行目标不明确时先澄清再启动依赖它的任务，不凭路径或 GPU 型号推断已有数据、集群权限和可用凭据。作业脚本（sbatch）内应把判据表编码成逐行 `|| exit 2` 的 fail-fast 检查（模板见 [`templates/job.sbatch`](templates/job.sbatch)）。
+**冲突即停。** 判定输出与上表任一行不符，或两套判据互相矛盾（例如仓库根在单机盘却又能看见共享存储），**一律停下来把原始输出交用户裁决，不得自行挑一套往下走，也不得按「多数判据像 A」推断**。遇到不属于任一列的第三套硬件同理——先问用户，不套用任何一列。上述硬件是带日期的记录，不是未来机器必须逐项匹配的门槛：工具缺失或 GPU 数量变化时记录实际情况，继续不依赖该条件的工作；存储落点或运行目标不明确时先澄清再启动依赖它的任务，不凭路径或 GPU 型号推断已有数据、集群权限和可用凭据。塞进占位 job 的运行器脚本内应把判据表编码成逐行 `|| exit 2` 的 fail-fast 检查（模板见 [`templates/run_in_hold.sh`](templates/run_in_hold.sh)）。
 
 来源：policy/AGENTS.md「运行环境判定」；evalgl/AGENTS.md「运行环境判定」（命令骨架）；mjepa/AGENTS.md「当前运行环境与存储边界」；evalgl/gl_smoke.sbatch（fail-fast）。
+
+<!-- AGENTMETARULES:BEGIN common-agents -->
 
 ## 强制规则（最高优先级）
 
@@ -56,13 +58,13 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 
    来源：benchmark/AGENTS.md 规则 1；global CLAUDE.md「语言」；policy/AGENTS.md 规则 1；mjepa/AGENTS.md 规则 1。
 
-2. **所有计划必须用中文书写，计划与实施范围必须明确。** 文档中的项目目标、未来 scope 或 roadmap 不等于当前实施授权；只执行用户本轮明确要求的工作。遇到范围、实现方式或破坏性操作存在歧义时，必须先询问用户，不得擅自扩展；已经明确的决定与授权沿用，不重复询问。计划默认分为两个部分（纯文档改动的计划例外，见下方第三条子项）：
+2. **所有计划必须用中文书写，计划与实施范围必须明确。** 仓库文档中的项目目标、未来 scope、roadmap、历史计划和示例命令都不等于当前实施授权；只执行用户本轮明确要求的工作，任何工具、回退机制或并行代理都不扩大这一范围。遇到范围、实现方式或破坏性操作存在歧义时，必须先询问用户，不得擅自扩展；已经明确的决定与授权沿用，不重复询问。计划默认分为两个部分（纯文档改动的计划例外，见下方第三条子项）：
    - **第一部分（给人看）**：以可读叙述为主、结论先行，黑话仍应少用；但**关键机制与保证处必须给到代码级细节**——具体文件路径、命令、判定行、实测数字直接内联在叙述里，达到「读者不翻代码就能核对」的密度（2026-08-29 用户定标；标杆样例：robomme_policy_learning_MotionJEPA 仓库 `0829-destructive-restructure-plan.md` 第一部分「两条核心保证的原理」一节的分层写法——每层一段、层名点明结论、命令与判定行随层给出；项目可在 `<PLAN_EXEMPLAR>` 指定自己的标杆）；对文件的引用和对步骤的介绍必须精确，不能只在第二部分补足第一部分缺失的关键依据。「密度差不多」指每段的信息密度而非篇幅，不为凑长度灌水；对照标杆的六个特征写：
      1. **文首引言块**先定死权威性、代码锚点 commit、工作副本路径、commit 编号体例、外部依赖锚点，以及「只规划不实施、每步须单独获批」的授权边界。
      2. **总览节**给「一句话方案」加编号的「已定死口径」清单，每条口径注明依据所在小节；用户拍板的原话逐字保留、不替用户改写。
      3. **每个机制小节**按「定义 → `文件::函数` 锚点与配置键 → 公式或代码块 → 数轴 / 示意图演示 → ⚠ 陷阱与反例 → 带实测数字的收益」展开。
      4. **改动前后链路图**逐跳标形状 / dtype / 字节量、可训练参数与「这一跳有没有改数」；改动一览用「文件 / 锚点 / 改什么 / 关闭态 / 开启态」表。
-     5. **每条验收**写成「查什么 / 怎么查 / 过了说明什么 / 判定行 `NAME=PASS k=v`」，并解释为什么该判据能成立（如为什么能逐位）；最终验收列出具名判定项，不用一条笼统 PASS 代替。
+     5. **每条验收**写成「查什么 / 怎么查 / 过了说明什么 / 判定行」，并解释为什么该判据能成立（如为什么能逐位）；判定行写法与最终验收的具名要求见第 22 条。
      6. **实施步骤表**「阶段 / 内容 / 判据」，判据直接引用上面的判定行；实施完成后实测结果以子节追加在步骤表之后，不改写原计划。
    - **第二部分（技术细节，供 agent 追踪）**：写清具体文件、函数、命令、参数、验证方式等实现细节，保证 agent 执行与核对时信息完整；第一部分已内联的细节可引用不重复。现有能力、拟新增接口、实测结果与待验证判据须明确区分。结构参照同一标杆文档的第二部分：〇 前置声明与红线（编号、可被正文引用）→ 按阶段 / 按文件的逐项改动清单 → 对拍闸门总表 → runbook → 风险登记 → 盲区诚实清单 → 留档与 commit 纪律。
    - **例外——纯文档改动的计划不分两部分**：本轮计划的产出物只有仓库内文档（Markdown 正文的重写、重排、补写、删改），不含任何代码、配置、数据或训练链路改动时，计划**不分第一部分 / 第二部分**，写成一篇单一连贯叙述：为什么改 → 改哪个文件的哪一段（替换范围精确到起止标题；编号规则精确到条目边界）→ 新正文按其自身组织顺序逐段说明要写成什么样（引用的代码锚点、实测数字随段给出）→ 验证命令与 commit 计划。上面两条关于细节密度与引用精确度的要求照旧适用，只是不再机械二分——纯文档任务里「给人看」与「供 agent 追踪」两侧内容高度重合，二分只会把同一份内容写两遍。
@@ -99,7 +101,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 
    来源：mjepa/AGENTS.md 规则 6；policy/AGENTS.md 规则 6；env-b-aws-replication.md 十一节第 3 条。
 
-7. **预计超过 5 分钟的训练、抽取、评估、数据构建与诊断必须放入 detached tmux session，脱离 agent 会话。** 由 agent 会话直接起的后台进程是该会话的子进程，会话退出/崩溃会连带杀死跑了几小时的任务。标准模板（2026-08-06 在 MotionJEPA 仓库做 nohup vs tmux 六判据实测后定：存活性/日志一致性/退出码三项打平，tmux 在死活判断/停止清理/人肉查看三项胜出，且免 setsid+pidfile+按进程组 kill 三件套——nohup 只杀 wrapper 会留孤儿，弃用；脚本化版本见 [`templates/run_long_task.sh`](templates/run_long_task.sh)）：
+7. **预计超过 5 分钟的训练、抽取、评估、数据构建与诊断必须放入 detached tmux session，脱离 agent 会话。** 由 agent 会话直接起的后台进程是该会话的子进程，会话退出/崩溃会连带杀死跑了几小时的任务。标准模板（2026-08-06 在 MotionJEPA 仓库做 nohup vs tmux 六判据实测后定：存活性/日志一致性/退出码三项打平，tmux 在死活判断/停止清理/人肉查看三项胜出，且免 setsid+pidfile+按进程组 kill 三件套——nohup 只杀 wrapper 会留孤儿，弃用；脚本化版本见 [`templates/run_long_task.sh`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/templates/run_long_task.sh)）：
 
    ```bash
    tmux new-session -d -s <本轮唯一会话名> \
@@ -109,7 +111,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
    - **日志三件套**：`PYTHONUNBUFFERED=1` 防管道块缓冲吞输出、`set -o pipefail` 防主命令崩了 `$?` 被 tee 的 0 顶替、日志用 `tee` 落文件供后续 tail 查看（**不要用 `> log 2>&1` 纯重定向**——纯重定向会让后台任务面板永远 "No output yet"，无法一眼判断死活）；正常结束或报错退出时记录 `EXIT_CODE=` 尾行作统一完成信号。≤5 分钟的短任务照旧直接后台起、不强制 tmux，但单独套用同一管道。日志与产物遵守第 14 条存储边界。
    - **配套命令**：死活判断 `tmux has-session -t '=完整会话名'`（运行中为真、结束后为假，无 stale 假阳性；`=` 前缀是精确匹配，`-t` 不带 `=` 时做前缀匹配）；中途停止 `tmux kill-session -t '=完整会话名'`（连 tee 一并干净退出、零孤儿；⚠ 强杀不会写 `EXIT_CODE=` 尾行，不能当作成功，判死只能靠 has-session）；人肉围观 `tmux attach -t <会话名>`（Ctrl-b d 脱开）；`tmux ls` 一览所有在跑任务。结束还须核对日志退出码。非 tmux 任务记录启动时 `$!` 的精确 PID；**禁止裸 `pgrep -f "<pattern>"` 判断进程存活**——`-f` 按全命令行匹配，pattern 字符串就写在调用者自己的 argv 里，pgrep 永远匹配到自己、条件恒真。确需按 pattern 匹配时用括号技巧破坏自匹配：`pgrep -f "[e]xtract_optical_flow.py"`（正则 `[e]` 匹配字面 `e`，但自己 argv 里存的是 `[e]xtract`，`e` 后跟 `]` 不跟 `x`，匹配不到自己）。
    - **多变量长命令先落脚本再进 tmux**：`export A=1 B=2 bash x.sh` 会把 `bash` 当成 export 参数——一律先写成脚本文件再 `tmux new-session "bash <文件>"`（2026-09-04 实测踩中）。多卡分片时避开正被训练 / 评估占用的卡（落在忙卡上的片实测慢 2–3 倍）。
-   - 盯日志的 Monitor / 过滤管道里**每一级都必须行缓冲**：中间夹的 `tr`/`awk`/`sed` 对管道输出默认 4KB 块缓冲——日志持续增长时事件被后续输出推出来、看似正常，**任务一结束，最后几行（RESULT/EXIT_CODE/PASS）就永远卡在缓冲区里，监听端静默不报**（2026-08-24 MotionJEPA 仓库两次实测踩中：epoch 基准与冷缓存复测都在结束时无事件，均由用户来问「跑完了吗」才发现；中段事件能到达掩盖了问题）。修法：`tr` 写成 `stdbuf -oL tr`、awk 加 `fflush()`、sed 加 `-u`，只给 `grep --line-buffered` 不够（脚本化版本见 [`templates/monitor_filter.sh`](templates/monitor_filter.sh)）：
+   - 盯日志的 Monitor / 过滤管道里**每一级都必须行缓冲**：中间夹的 `tr`/`awk`/`sed` 对管道输出默认 4KB 块缓冲——日志持续增长时事件被后续输出推出来、看似正常，**任务一结束，最后几行（RESULT/EXIT_CODE/PASS）就永远卡在缓冲区里，监听端静默不报**（2026-08-24 MotionJEPA 仓库两次实测踩中：epoch 基准与冷缓存复测都在结束时无事件，均由用户来问「跑完了吗」才发现；中段事件能到达掩盖了问题）。修法：`tr` 写成 `stdbuf -oL tr`、awk 加 `fflush()`、sed 加 `-u`，只给 `grep --line-buffered` 不够（脚本化版本见 [`templates/monitor_filter.sh`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/templates/monitor_filter.sh)）：
 
      ```bash
      tail -n +1 -F <STORE_ROOT>/logs/<run>.log | stdbuf -oL tr '\r' '\n' \
@@ -135,12 +137,16 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
    来源：policy/AGENTS.md 规则 7（含清理红线全文）；global CLAUDE.md「后台进程等待」；mjepa/AGENTS.md 规则 7（`=` 精确匹配、强杀不写退出码）；benchmark/AGENTS.md 规则 4；env-b-aws-replication.md 十节 1、5、7。
 
 8. **集群提交按环境分叉，权威源是本仓库的 [`greatlakes.md`](greatlakes.md)。**
-   - **有集群访问的环境**：向 GreatLakes 提交 Slurm 作业前必须遵守 `greatlakes.md` 的 account、partition、资源包络、NFS 路径及认证规约（项目仓库以引用或同步副本接入；文件尚不存在时必须先向用户确认集群 account、partition、资源上限和 NFS 路径，不得直接复制其他仓库的集群配置）。要点提醒（不替代原文）：`--account=<GL_ACCOUNT>`、`--partition=<GL_PARTITION>`、恒 `--nodes=1 --ntasks-per-node=1`、日常包络 ≤2 GPU 且 ≤00:30:00（超出须用户逐次放行）、**不要写 `--qos=interactive`**（chaijy2/spgpu 实测报 `Invalid qos specification`，默认不指定 qos 即可；遇 `(AssocGrpMemLimit)` 先降 `--mem`，确需指定时先用 `sacctmgr show assoc user=<用户> format=qos` 查清正确名）、分区强制至少 1 GPU、计算节点唯一可见共享路径是 `<SHARED_ROOT>`；account、partition、资源包络、qos、PENDING 读法、Okta 登录、ControlMaster 一律以 `greatlakes.md` 原文为准。
+   - **有集群访问的环境**：向 GreatLakes 提交前必须遵守 `greatlakes.md` 的 account、partition、占位 job 规格、NFS 路径及认证规约（项目仓库以标记块副本接入；文件尚不存在时必须先向用户确认集群 account、partition、资源上限和 NFS 路径，不得直接复制其他仓库的集群配置）。要点提醒（不替代原文）：
+     - **一切工作负载一律经 48 h 占位 job 运行**（`--account=<GL_ACCOUNT> --partition=<GL_PARTITION> --nodes=1 --ntasks-per-node=1 --gres=gpu:1 --time=48:00:00 --wrap='sleep infinity'`），工作负载用 `srun --jobid=<hold> --overlap --exact --ntasks=1 --gpu_cmode=shared <脚本>` 塞进去跑，不把工作负载直接 `sbatch`；任务一旦确定要上集群，**开工第一步、读代码或改代码之前就提交占位 job**，让排队与改代码并行，JobID 立刻记入本会话清单。
+     - 规格默认压到最低 `--cpus-per-task=1 --mem=24G` 以快速排队；ManiSkill 多 worker CPU 生成按每 worker 1 CPU + 12 G；一次默认最多 4 个占位 job、单 job 超过默认规格先提交再提醒用户、超过 4 个先让用户审核数量；任务结束、commit 完成后按清单里自己的 JobID 逐个 `scancel`，绝不 `scancel -u`。
+     - **不要写 `--qos=interactive`**（chaijy2/spgpu 实测报 `Invalid qos specification`，默认不指定 qos 即可；遇 `(AssocGrpMemLimit)` 先降 `--mem`，确需指定时先用 `sacctmgr show assoc user=<用户> format=qos` 查清正确名）、分区强制至少 1 GPU、计算节点唯一可见共享路径是 `<SHARED_ROOT>`。
+     - account、partition、规格、数量、qos、PENDING 读法、Okta 登录、ControlMaster 一律以 `greatlakes.md` 原文（「资源约束」「算力使用规则」两节）为准。
    - **无集群访问的环境**（无 `~/.ssh/config`、无 ControlMaster）：**禁止提交任何 Slurm 作业、禁止 ssh 集群、禁止运行提交器**；训练、建库、评估一律在本机跑。`greatlakes.md` 与引用集群的历史留档保留为只读存档，可读不可执行；历史命令不能作为已有访问权限或提交授权的依据。确有集群需求时先问用户，不得自行尝试恢复连接。
 
    来源：policy/AGENTS.md 规则 8；evalgl/AGENTS.md 规则 8；mjepa/AGENTS.md 规则 3。
 
-9. **仓库长期文档中禁止用硬编码行号引用代码**（`file.py:123` 这类）。行号随代码演进必然漂移。引用代码一律用**稳定符号锚点**：函数/类/方法名、CLI flag 名、JSON 字段名、配置键、或代码段的语义描述；文件级 markdown 链接可保留。本条不约束代码内注释与 commit message；审计报告的临时行号引用须同时标明完整提交（第 19 条），不能抄入长期文档。
+9. **仓库长期文档中禁止用硬编码行号引用代码**（`file.py:123` 这类）。行号随代码演进必然漂移。引用代码一律用**稳定符号锚点**：函数/类/方法名、CLI flag 名、JSON 字段名、配置键、或代码段的语义描述；文件级 markdown 链接可保留。本条不约束代码内注释与 commit message；审计报告中的临时行号见第 19 条，同样不得抄入长期文档。
 
    来源：benchmark/AGENTS.md 规则 5；policy/AGENTS.md 规则 9；mjepa/AGENTS.md 规则 9。
 
@@ -160,9 +166,9 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 
       纯文档/一行修补类微小改动，body 可相应精简，但用户指令原话与测试/验证结果两项不可省。
     - **只 commit 本轮自己改的内容**：一律 `git add <逐个明确路径>`，**禁止 `git add -A`、`git add .`、`git commit -a`** 这类全量暂存——它们会把用户或其他 agent 的在途改动一并裹进来。同文件混有他人改动时，用 `git apply --cached` 只暂存确认属于本轮的 hunk，不能整文件带入。
-    - **提交前先 `git status --short` 核对工作区**：存在不属于本轮改动的文件（用户或其他 agent 的在途编辑、遗留脏文件）时**一律绕开、不提交，也不 stash/revert 掉**，必要时在汇报里点名交用户处置。不得提交、stash、删除或回滚用户及其他 agent 的在途改动；不为得到 clean HEAD 擅自清理工作区。
+    - **提交前先 `git status --short` 核对工作区**：存在不属于本轮改动的文件（用户或其他 agent 的在途编辑、遗留脏文件）时**一律绕开、不提交**，必要时在汇报里点名交用户处置。**不得对用户及其他 agent 的在途改动做提交、stash、checkout、clean、删除或回滚中的任何一种**；不为得到 clean HEAD 擅自清理工作区。其他条目提到「不碰他人在途改动」均指本条。
     - **每次 `git commit` 完成后必须立即 `git push` 同步到远端**，不得让已提交的 commit 滞留本地；本轮结束时 `git status -sb` 首行不得残留 `ahead` 计数。该同步已获用户长期授权，无需逐次确认；凭据走 gh CLI（`credential.https://github.com.helper=!/usr/bin/gh auth git-credential`），HTTPS 免交互。**声明式例外**：项目 `AGENTS.md` 明确声明「本仓库不继承自动推送授权」、当前分支没有 upstream、仓库是第三方 fork 或当前机器是无凭据一侧时，不得自行推送，先问用户再决定是否 `git push -u origin <branch>`。
-    - push 只推当前分支到其既有 upstream（裸 `git push`）。**禁止 `git push --force` 与 `--force-with-lease`**。push 被拒（非快进、认证失败、网络不可达）时立即停止，将 git 原始报错交用户处置，不得改写历史或反复重试。
+    - push 只推当前分支到其既有 upstream（裸 `git push`）。**禁止 `git push --force` 与 `--force-with-lease`**。push 被拒（非快进、认证失败、网络不可达）时立即停止，将 git 原始报错交用户处置，不得改写历史或反复重试。**例外（用户逐次批准，2026-09-26）**：本地分支带着他人在途 commit、又必须把自己的改动同步到远端时，用 plumbing 在远端 HEAD 上构造**只含自己改动文件**的 commit 并 `git push origin <sha>:refs/heads/<分支>` 快进推送，本地再落一个以该 commit 为第二父的合并提交（脚本与流程见第 25 条同步机制）；被拒仍立即停止，最多重建一次，不 force。
     - **禁止 `git clean -x`、`git clean -X`** 及等效删除被忽略产物的清理方式（会删掉 `<STORE_ROOT>` 下全部不进 git 的数据，并破坏 worktree 管理状态）。带覆盖选项或清空输出根的命令执行前，核实确切目录、符号链接目标、内容归属和授权；不能因文件未被 Git 跟踪就认为可以删除。检查历史优先使用 `git log`、`git show`、`git ls-tree`、`git diff`；需要运行历史版本时使用隔离 worktree 或恢复分支，不能覆盖用户现有修改。
 
     来源：global CLAUDE.md「git 提交」；policy/AGENTS.md 规则 11；mjepa/AGENTS.md 规则 11；benchmark/AGENTS.md 规则 7 与全局执行规则；benchmark 日志 2026-09-09（`git apply --cached`）。
@@ -197,12 +203,12 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 
     来源：mjepa/AGENTS.md 规则 12；policy/AGENTS.md 规则 12；evalgl/AGENTS.md 规则 13；env-b-aws-replication.md 十节 2。
 
-13. **正式全量数据集构建必须留档到 `<DOC_ROOT>/<档案名>/`，且起跑前先打 Beta commit 锚点**（2026-08-18 随 MotionJEPA v8-400ep 建库定稿）：
-    - **(1) 起跑前 Beta commit**：任何正式全量构建，**在跑第一阶段之前必须先 `git commit`**（subject 加 `Beta` 标记，body 写本轮计划、源目录、目标路径与全部 env 覆盖项），提交后 `git status --short` **必须为空**才允许起跑；Beta 与回写结论的正式 commit 用同一小版本号、两个独立 commit、禁止 squash/amend。**闸门绑定**：真正开始烧 GPU·h 的那一步（如 `CONFIRM_FULL=yes`）之前 HEAD 必须精确等于所跑的代码（运行时产物如 pin 更新须先单独 commit）。
-    - **(2) 建档制度（两段式）**：确认档案名的同时建目录。①构建起跑那一刻先写「版本与代码状态」「启动与配置还原」两节——**全部 env 覆盖项构成的那张表就是可复现面**，事后无法准确重建；②全部任务成功且验收通过后补其余各节并归档数据文件。集群任务记提交与作业状态；单机任务记本机入口、设备、进程与退出码，不制造集群记录。README 全中文，详略比照第 11 条，必须含**用户决策原话**与**实测结果**。起跑前记录可复现的 commit、命令、配置、数据来源和输出路径。
-    - **(3) 归档白名单（只归档 git 还原不出来的东西）**：归档各阶段与 finalize 的**清洗后**日志、内存采样峰值、pin 快照、各道守卫的判定行、比对输出、耗时表；**禁止归档 `.sh` / `.sbatch` / `.yaml` 的任何拷贝**——它们已被 Beta commit hash 锁死，README 里用 `git show <beta-hash>:<路径>` 引用，启动命令原文写成代码块；`<DOC_ROOT>` 下保持**零 .sh / 零 .yaml**。**不归档数据集产物本身**（GB 级），留在 `<STORE_ROOT>`。
-    - **(4) 日志清洗**：`tr '\r' '\n' < <原始日志> | grep -vE '%\|' > <DOC_ROOT>/<档案>/logs/<名>.summary.log`；分片入口核验 `grep -c 'SHARD_EXIT_CODE\|FINALIZE_EXIT_CODE' <清洗后>` 应等于分片数 + 1，其他入口按实际阶段核对原始与清洗后日志的退出记录数量及值，不得丢失完成、失败或关键指标。
-    - **(5) 索引**：`<DOC_ROOT>/README.md` 是总索引，每建一个档案就往一览表加一行。**(6) 章节体例**：正式全量构建一律用完整体例，不得用冒烟档案的压缩版；冒烟/演练档案可用压缩版。
+13. **正式全量数据集构建同样适用第 12 条的 Beta 锚点、两段式建档、归档白名单、日志清洗与总索引，留档到 `<DOC_ROOT>/<档案名>/`**（2026-08-18 随 MotionJEPA v8-400ep 建库定稿；确认档案名的同时建目录）。以下只列与第 12 条不同之处：
+    - **Beta 时点与闸门**：Beta commit 打在第一阶段起跑之前，body 另写源目录、目标路径与全部 env 覆盖项。**闸门绑定**：真正开始烧 GPU·h 的那一步（如 `CONFIRM_FULL=yes`）之前 HEAD 必须精确等于所跑的代码（运行时产物如 pin 更新须先单独 commit）；打包期间冻结 HEAD 同第 12 条 (1)。
+    - **可复现面与第二段时点**：「启动与配置还原」一节里，**全部 env 覆盖项构成的那张表就是可复现面**；第二段在全部任务成功且验收通过后才补写。集群任务记提交与作业状态；单机任务记本机入口、设备、进程与退出码，不制造集群记录。
+    - **归档白名单的差异**：归档各阶段与 finalize 的清洗后日志、内存采样峰值、pin 快照、各道守卫的判定行、比对输出、耗时表；禁止拷贝的范围另含 `.sbatch`；**不归档数据集产物本身**（GB 级），留在 `<STORE_ROOT>`。
+    - **日志清洗核验**：清洗命令同第 12 条 (3)，产出 `<DOC_ROOT>/<档案>/logs/<名>.summary.log`；分片入口核验 `grep -c 'SHARD_EXIT_CODE\|FINALIZE_EXIT_CODE' <清洗后>` 应等于分片数 + 1，其他入口按实际阶段核对原始与清洗后日志的退出记录数量及值，不得丢失完成、失败或关键指标。
+    - **章节体例**：正式全量构建一律用完整体例，不得用冒烟档案的压缩版；冒烟 / 演练档案可用压缩版。
 
     来源：mjepa/AGENTS.md 规则 15；policy/AGENTS.md 规则 12。
 
@@ -213,7 +219,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
     - **禁止覆盖 `HOME`**——覆盖会打断 ssh 与一切按 `~` 定位的配置（找不到 `~/.ssh/config` 与 ControlMaster socket，直接打断集群提交）；改为逐项显式设置 `UV_CACHE_DIR` / `XDG_CACHE_HOME` / `WANDB_*` / `HF_HOME` / `MAMBA_ROOT_PREFIX` 等缓存类环境变量指向 `<FAST_LOCAL_CACHE_ROOT>`（`UV_CACHE_DIR` 的特殊性见第 3 条）。不能只设置 uv 就假定模型缓存会跟随。
     - **凡带 `--force` 或输出根参数的命令起跑前先 `ls -ld <输出根>`**，确认它是本环境的实体目录且归属正确（`--force` 类命令可能 `rmtree` 整个输出根，穿透 symlink 即删主副本数据）。**对产物目录的删除必须显式列目录，不得跨运行 glob**（2026-09-12 实测：`find <产物根> -name "*.h5" -size -200c -delete` 没限定到旧运行目录，把正在写的 36 个 in-flight 文件一并 unlink，整轮重跑）。
     - **开发副本例外模式**（长任务期间主副本锁死只读时可用，2026-09-15 用户批准）：开发转到 `<WORK_ROOT>-temp/`，其 `<STORE_ROOT>` 整体是一条指向主副本的 symlink——**这条链是可写的**，因此开发副本里一切写入 `<STORE_ROOT>` 的操作等同于直接写主副本数据，按写主副本的标准审慎对待；**红线**：开发副本里禁止执行任何带 `--force` 或输出根参数的破坏性命令，确需执行时回到主副本并先 `ls -ld`；开发副本**必须有自己的 `.venv`**（共用时 `uv sync` / `uv add` 会换掉正被训练进程使用的包文件，dataloader worker 重建时读到新文件即污染在跑的训练）；开发副本是临时工作区，不跨长任务周期保留，仓库权威副本始终是主副本。
-    - 吞吐基准必须记录**底层存储介质**（本机 NVMe / NFS / 本地 RAID）与 batch size、worker 数、warmup 和稳定态统计；不同介质的数字不得混比，跨介质对照必须在同一介质上重测。
+    - 吞吐基准的记录与比较口径见第 16 条（底层存储介质、batch、worker、预热与稳态窗口，不同介质不得混比）。
 
     来源：policy/AGENTS.md 规则 13、14；benchmark/AGENTS.md 规则 8 与全局执行规则；evalgl/AGENTS.md 规则 10、11；mjepa/AGENTS.md「当前运行环境与存储边界」；benchmark 日志 2026-09-12（跨运行 glob 事故）。
 
@@ -226,11 +232,11 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 
     来源：policy/AGENTS.md 规则 15；external-assets-lock.md 一、二、五、六节；evalgl/AGENTS.md 规则 6(c)；env-b-aws-replication.md 四节。
 
-16. **GPU 利用率的测量与判读必须防止「中位数假象」**：结论必须以稳态窗口内的 **util 均值、0% 采样占比、慢步/非慢步分层均值** 为准，禁止以中位数作为标题结论；采样间隔必须显著小于步时——步时数秒量级时用 `nvidia-smi -lms 500` 流式密集采样（500ms 即 NVML 有效密度上限，`utilization.gpu` 本身是其约 1/6~1 秒内部周期的均值，不把重复读数当作新增证据），需要与旧数据对照时可并行保留 15 秒 legacy 采样通道。性能优化的首要判据是「GPU 是否吃满」，不得凭单一统计量宣称无瓶颈（2026-08-24 v1-e2e-b64 中位 100% 掩盖了均值仅 69-70% 的实测教训）；但也**不能以「GPU 吃满」替代吞吐、正确性和资源成本**。性能结论必须带稳态与环境证据：GPU、底层存储介质、batch size、worker 数、预热区间、稳态窗口、采样间隔与吞吐；跨环境比较在当前环境重测。
+16. **GPU 利用率的测量与判读必须防止「中位数假象」**：结论必须以稳态窗口内的 **util 均值、0% 采样占比、慢步/非慢步分层均值** 为准，禁止以中位数作为标题结论；采样间隔必须显著小于步时——步时数秒量级时用 `nvidia-smi -lms 500` 流式密集采样（500ms 即 NVML 有效密度上限，`utilization.gpu` 本身是其约 1/6~1 秒内部周期的均值，不把重复读数当作新增证据），需要与旧数据对照时可并行保留 15 秒 legacy 采样通道。性能优化的首要判据是「GPU 是否吃满」，不得凭单一统计量宣称无瓶颈（2026-08-24 v1-e2e-b64 中位 100% 掩盖了均值仅 69-70% 的实测教训）；但也**不能以「GPU 吃满」替代吞吐、正确性和资源成本**。性能与吞吐结论必须带稳态与环境证据：GPU、底层存储介质（本机 NVMe / NFS / 本地 RAID）、batch size、worker 数、warmup 与预热区间、稳态窗口、采样间隔与吞吐；不同介质或环境的数字不得混比，跨介质 / 跨环境对照必须在同一介质、当前环境上重测。
 
-    来源：policy/AGENTS.md 规则 16；mjepa/AGENTS.md 规则 17。
+    来源：policy/AGENTS.md 规则 16；mjepa/AGENTS.md 规则 17；原第 14 条末项「吞吐基准记介质」于 2026-09-26 并入。
 
-17. **预计或实际运行超过 5 分钟的调试 / 基准 / 诊断 run 一律视作完整运行，同等适用第 12 条**：从 clean HEAD 启动、在 `<DOC_ROOT>/<run_name>/` 留档（launch.md、result.md、records/，或单文件体例下的 run `README.md`），记录硬件、存储、命令、版本和结果，不得以「只是调试」为由跳过留档。正式训练仍要求 Beta 锚点；单纯诊断在已有 clean HEAD 上记录提交即可，不制造空提交。短测意外超过 5 分钟时补记真实启动状态并保存结果；不得声称事后提交就是启动版本。**无法满足可复现要求的结果须标为探索性**，正式结论另从可复现锚点重测。≤5 分钟的短 smoke 不强制留档，但仍受第 6 条临时 run 清理约束。
+17. **预计或实际运行超过 5 分钟的调试 / 基准 / 诊断 run 一律视作完整运行，同等适用第 12 条**（clean HEAD 启动、按第 12 条 (2) 的体例留档），不得以「只是调试」为由跳过留档。与第 12 条的差异只有：Beta 锚点只对正式训练强制，单纯诊断在已有 clean HEAD 上记录提交即可、不制造空提交；短测意外超过 5 分钟时补记真实启动状态并保存结果，不得声称事后提交就是启动版本；**无法满足可复现要求的结果须标为探索性**，正式结论另从可复现锚点重测。≤5 分钟的短 smoke 不强制留档，临时 run 清理按第 6 条。
 
     来源：policy/AGENTS.md 规则 17；mjepa/AGENTS.md 规则 16。
 
@@ -243,11 +249,11 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
     来源：policy/AGENTS.md 规则 18；mjepa/AGENTS.md 规则 18；benchmark/AGENTS.md 第三阶段第 5 条；env-b-aws-replication.md 二节、7.4 节。
 
 19. **纯审计任务**（代码/文档评审、对抗验证、Codex 审计等一切不修改仓库的评审类任务，无论由 Claude 还是 Codex 执行）**只看任务发起那一刻的仓库，后续改动一律不看。** 锚定规则：
-    - **发起**：立即记录 `AUDIT_BASE=$(git rev-parse HEAD)` 并运行 `git status --porcelain`。porcelain 非空（**含未跟踪 `??` 条目**）→ 可能是用户或其他 agent 的在途工作，**禁止对这些在途改动做 commit / stash / checkout / clean / revert 中的任何一种**（第 11 条已有同类禁令），立即停止并把 porcelain 原文交用户三选一：(a) 等改动落地后再审；(b) 只审 `AUDIT_BASE`、报告中列出被排除的在途改动清单；(c) 审当前工作区、放弃锚定（报告须标注「未锚定」）。未获用户答复不得开审；期间可以继续读取已明确范围的提交内容。
+    - **发起**：立即记录 `AUDIT_BASE=$(git rev-parse HEAD)` 并运行 `git status --porcelain`。porcelain 非空（**含未跟踪 `??` 条目**）→ 可能是用户或其他 agent 的在途工作，按第 11 条一律不动，立即停止并把 porcelain 原文交用户三选一：(a) 等改动落地后再审；(b) 只审 `AUDIT_BASE`、报告中列出被排除的在途改动清单；(c) 审当前工作区、放弃锚定（报告须标注「未锚定」）。未获用户答复不得开审；期间可以继续读取已明确范围的提交内容。
     - **范围冻结**：审计范围冻结在 `AUDIT_BASE`——不看其后的文件改动，**也不读取其后的任何 ref / commit / diff**（`git log AUDIT_BASE`、`git show AUDIT_BASE:<path>` 允许；裸 `git log`、`git diff HEAD`、`git log <branch>` 禁止）。git worktree 快照只冻结文件、不冻结 refs，此条不因使用快照而豁免。用户明确要求审当前工作区时，记录实际范围并标明其中未提交内容未由该提交锚定。
     - **禁执行**：纯审计不得执行仓库内任何脚本、测试或训练命令，不得 `uv run` / `uv sync`（脚本会按自身位置推仓库根并 `mkdir` 目录树，在快照里执行会凭空造出假 `<STORE_ROOT>`）。需要动态验证即不属纯审计，先明确新的验证范围并按第 3、7 条另行请示；已有执行授权按其执行，不把它描述为纯静态审计。
     - **收官复核**：报告产出前重跑 `git rev-parse HEAD` 与 `git status --porcelain`；与发起时不一致 → 报告开头写明「审计期间仓库由 X 变为 Y，本报告锚定 X」并列出期间变动的文件，交用户决定是否补审；不自动把新版本算作已审。
-    - **报告标注**：报告开头固定写明 `AUDIT_BASE` 全 sha；报告内引用行号必须与 `AUDIT_BASE` 同时出现，且不得写入仓库长期文档（第 9 条）。
+    - **报告标注**：报告开头固定写明 `AUDIT_BASE` 全 sha；报告内引用行号必须与 `AUDIT_BASE` 同时出现（长期文档禁行号见第 9 条）。
     - **可选加强（仅 Claude 侧长时审计、经用户同意）**：`git worktree add --detach <STORE_ROOT>/audit/worktrees/<任务名> $AUDIT_BASE` 建只读快照，审计 agent 工作目录设为快照目录。快照内没有 `<STORE_ROOT>` 与 `.venv`，上条禁执行在快照内尤其致命。清理由发起方负责（`git worktree remove --force` + `git worktree prune`；审计 agent 自己的 cwd 在快照内、删不掉自己）；快照视同临时产物，不跨会话保留——源码快照不属第 14 条枚举的「派生数据」，落在只读归档路径下也不违反同条的工作副本 / 归档边界，此两条豁免以本条为准。Codex 插件不支持指定 cwd 且其 sandbox 默认只读，Codex 审计一律走上面各条、不用快照。
     - **重锚**：用户在审计期间明确要求查看新改动时允许重锚（记 `AUDIT_BASE_2`，报告分段标明各自锚点）；除用户明确指令外不得自行重锚。
 
@@ -267,7 +273,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
     - **禁止整文件覆盖**：本例外只允许补丁式修改，禁止改用 `cat >`、`sed -i`、`perl -pi`、脚本重写或其他整文件覆盖方式规避 `apply_patch`；禁止 glob、递归目标、未校验变量、符号链接目标，禁止把单文件失败扩大成目录级重写。
     - **删除操作不会因沙箱故障自动获得授权**：仍须逐项核验固定目标、文件类型、符号链接、恢复能力和用户授权，并遵守第 11、14 条的破坏性操作约束。
     - **应用后核对**：除 `git diff --check` 外，还必须运行 `git status --short`，并对本轮每个明确目标逐文件检查 `git diff -- <path>`；发现越界文件、`.orig` / `.rej`、非预期 hunk 或用户在途改动被带入时立即停止，不得暂存或提交。
-    - **授权边界不扩张**：本回退只替代失效的文件补丁传输机制，不授权扩大修改范围、绕过破坏性操作审批，也不改变第 11 条逐文件暂存和保护他人在途改动的要求。
+    - **授权边界不扩张**：本回退只替代失效的文件补丁传输机制，不绕过破坏性操作审批；授权范围按第 2 条，逐文件暂存与他人在途改动保护按第 11 条。
 
     来源：policy/AGENTS.md 规则 20；mjepa/AGENTS.md 规则 20；benchmark/AGENTS.md 规则 9（删除授权、最小命令重试）。
 
@@ -307,7 +313,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
     - **`trap cleanup EXIT` 收掉 server**，否则调度器发 SIGTERM 时留孤儿进程、`EXIT_CODE=` 行不落盘；sbatch 层用 `exec` 交棒给带 trap 的运行器，让终止信号直达运行器而不是打到 wrapper 上。任何需要第二个 CUDA 上下文的情形（同卡多进程，**或单进程内 torch + Vulkan/图形互操作，如 SAPIEN / ManiSkill 渲染**）sbatch / srun 都要加 `--gpu_cmode=shared`——集群默认 `exclusive`，不加则 Vulkan 建不了 device（详见 `greatlakes.md`）。
     - **不得依赖「重试到出结果文件」作为恢复机制**：进程活着、不报错退出、不产出任何结果、持续占着 GPU 的静默空转，外层重试包装接管不到。改为按进度文件 mtime 做无进展检测（超阈值即杀掉重起）+ 有限次重试 + 对最终结果文件的完整性断言（任务数、episode 数）。盯这类作业不能只等「完成」事件，过滤器必须同时覆盖缺陷特征行。
     - **探针失败就记录失败并定位原因，不自动降级**到未验证的候选配置（如 CPU 渲染）；作业模板不得继承上一轮诊断遗留的兼容开关或设备覆盖（起跑前显式 `unset`）；同卡共驻等资源组合在探针验证前只是「待验证的起始配置」，不是已证结论。
-    - **资源包络需用户逐次放行**：全量作业超出调试包络时，提交前必须显式确认 GPU 数、walltime 与分片数。
+    - **占位 job 数量与规格的放行按第 8 条**：超出默认规格先提交再提醒，超出默认数量先让用户审核。
 
     来源：evalgl/AGENTS.md 规则 14、15；evalgl/CLAUDE.md Monitor 第 7 条；evalgl/gl_smoke.sbatch。
 
@@ -319,24 +325,38 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
     来源：evalgl/AGENTS.md 规则 5、6；policy/AGENTS.md「策略评估的工作副本与第三方分支机制」；benchmark 日志 2026-09-11。
 
 25. **规则文件的维护元规则。**
-    - **分工**：通用约定与 Codex 专属条目进 `AGENTS.md`；Claude Code 专属（最终输出层展开、Monitor、Workflow/Agent 模型、Skill、plan mode）进 `CLAUDE.md`，`CLAUDE.md` 顶部 `@AGENTS.md` 引用而不复制，避免两份规则分叉；两份同等强制，冲突时以 `AGENTS.md` 为准。新增约定按适用范围二选一落位。
+    - **分工**：通用约定与 Codex 专属条目（第 20、26 条）进 `AGENTS.md`；Claude Code 专属（最终输出层展开、Monitor、Workflow / Agent 模型、Skill、plan mode）进 `CLAUDE.md`，`CLAUDE.md` 顶部 `@AGENTS.md` 引用而不复制，避免两份规则分叉；两份同等强制，冲突时以 `AGENTS.md` 为准，两份都服从系统、开发者及用户当前指令。新增约定按适用范围二选一落位。
     - **编号稳定**：新增条目插在末尾或标注插入位，**不重编号**——其他文件与计划会按条号交叉引用，重编号会全部失效。
     - **搬运用脚本不手抄**：在仓库间移动规则正文时用一次性脚本按行首标记切块搬运，每处替换带 assert 命中次数校验，保证移动的是原文而非改写；通用化改写只动专有名词（如「`run_in_background` 起的进程是 Claude Code 会话的子进程」→「由 agent 会话直接起的后台进程是该会话的子进程」）。
-    - **规则来源段**：项目 `AGENTS.md` 末尾写明通用规则引用自本正本的哪个 commit，并**逐条列出未采用的条目及原因**；正本更新后回流时记录新 sha。
-    - **跨宿主中立**：Claude 的模型名称、Workflow、Monitor、计划工具约束不施加给 Codex 或其他代理；其他代理使用当前宿主提供的工具并遵守其权限，不假定工具存在或支持某个参数。
+    - **规则来源段**：项目 `AGENTS.md` 末尾写明通用规则引用自本正本的哪个 commit（与标记行的 `src=` 一致），并**逐条列出未采用的条目及原因**（例：纯评测仓库可不采用第 10、13、16、18 条，但要写明）；正本更新后回流时记录新 sha（方式见下条「同步机制」）。
+    - **跨宿主中立**：Claude 的模型名称、Workflow、Monitor、计划工具约束不施加给 Codex 或其他代理；Codex 专属条目（第 20、26 条）也不施加给 Claude Code 或其他代理。各代理使用当前宿主提供的工具并遵守其权限，不假定工具存在或支持某个参数。
+    - **同步机制（2026-09-26 新增）**：Codex 等代理只自动加载项目仓库内的 `AGENTS.md`（且默认只读前 32 KiB），不会跟随链接去读正本，因此项目仓库以**标记块副本**接入，不只写引用：
+      - **标记块**：项目 `AGENTS.md` / `CLAUDE.md` / `greatlakes.md` 里，正本正文整段放在一对标记行之间——`<!-- AGENTMETARULES:BEGIN <块名> src=<正本 commit sha> blob=<块内容 blob id> -->` … `<!-- AGENTMETARULES:END <块名> -->`，块名分别为 `common-agents`（本文件「强制规则」至附录 A）、`common-claude`、`common-greatlakes`；标记外只写项目专属内容（第 0 条判据表、占位符取值、项目专属规则 `P1…Pn`、按条号的覆盖项、规则来源段）。同步目标登记在 [`sync-targets.json`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/sync-targets.json)，脚本为 [`scripts/sync_rules.py`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/scripts/sync_rules.py)。
+      - **先改正本再回流**：通用条目的任何改动只在正本仓库改，commit 并 push 后再回流——`sync_rules.py check` 只读比对各目标标记块与正本 HEAD 块、报出漂移（末行 `SYNC_SUMMARY=PASS|FAIL`）；`sync_rules.py apply` 只替换标记块内容与标记行里的 sha，不碰标记外内容；目标仓库带着他人在途工作时用 [`scripts/land_rules_commit.py`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/scripts/land_rules_commit.py)（远端侧只含规则文件的 plumbing 提交 + 本地侧合并提交，见第 11 条 push 例外）。回流提交同时更新项目「规则来源」段的 sha。脚本按第 3 条经 `uv run --no-project python` 运行。
+      - **项目副本只改标记外内容**：标记块内禁止手改；在项目里发现正本需要修改时，回正本仓库改正本再 `apply`，不在副本里先改后补。项目对正本的偏离一律写成标记外的按条号覆盖项。
+      - `apply` 写的是别的仓库：只写 `sync-targets.json` 登记的文件；目标工作区的在途改动、暂存、提交与推送按目标仓库自己的第 11 条口径（含声明式例外）处理。
 
-    来源：benchmark 日志 2026-09-09（拆分口径、编号取舍、脚本搬运）；evalgl/AGENTS.md「规则来源」；mjepa/AGENTS.md 前言。
+    来源：benchmark 日志 2026-09-09（拆分口径、编号取舍、脚本搬运）；evalgl/AGENTS.md「规则来源」；mjepa/AGENTS.md 前言；2026-09-26 用户要求「每个仓库都要有一份agentsmd greatlake md等等 AgentMetaRules只负责每次同步的时候检查一下 平时只在仓库内交互 不要每次都读github太麻烦了」（标记块同步机制）。
 
-26. **仅 OpenAI Codex：积极使用多代理，保持职责与写入边界清晰。**
-    - **适用对象**：本条只约束 OpenAI Codex 主代理及其子代理。Claude Code（包括其子代理与 Workflow）和其他代理必须忽略本条，继续遵守各自宿主规则。
-    - **积极并行**：在用户已经授权、且工作可独立推进时，积极并行探索、实现、验证和审查；主代理继续推进关键依赖与整合工作。存在前后依赖的步骤按依赖顺序执行，不为并行而并行。并行不扩大用户授权范围。
-    - **委派说明**：每项委派都要明确目标、上下文、可读与可写范围、禁止事项、依赖、交付内容和验收方式；依任务需要限制文件、目录、分支或工作区，避免子代理自行推断更大范围。
-    - **写入隔离**：同一文件或共享产物只指定一个写入负责人，其他代理对该对象只读。需要并行修改时，按互不重叠的文件集合或独立 worktree 分隔；整合前由主代理核对重叠、差异和工作区状态，不覆盖或提交其他代理、用户或既有的在途改动。
+26. **仅 OpenAI Codex：完全按多代理流程工作——持久化子代理、尽可能多并发、写入边界清晰。**
+    - **适用对象**：本条只约束 OpenAI Codex 主代理及其子代理。Claude Code（包括其 Agent 工具子代理与 Workflow）和其他代理必须忽略本条；Claude Code 的子代理范式（一个时间点放一批、用完即弃、默认只读）见 `CLAUDE.md`「Workflow 与 Agent 模型」，两套范式互不套用，逐项对照见 [`docs/subagent-claude-vs-codex.md`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/docs/subagent-claude-vs-codex.md)。
+    - **默认多代理（本条即委派许可）**：Codex 只在用户或适用的 `AGENTS.md` / skill 指令明确要求时才派子代理，「深入 / 彻底 / 调研」一类措辞不算许可；**本条就是本正本对子代理、委派与并行代理工作的明确要求**。凡任务能拆出互相独立的探索、实现、验证、审查子任务，一律交给子代理并行完成，不等用户逐次说「用多代理」。主代理先定总计划，自己做紧挨着的关键路径步骤（下一步立刻依赖其结果的阻塞任务不外包），把可并行的旁路任务交给子代理；存在前后依赖的步骤按依赖顺序执行，不为并行而并行。并行不扩大授权（第 2 条）。
+    - **并发打满宿主容量**：按宿主实际容量安排，独立子任务足够时让同时在跑的子代理数尽量接近上限。**并发容量的标准值是 `~/.codex/config.toml` 里 `[agents] max_concurrent_threads_per_session = 16`（不含主代理）：开工时先检查当前机器的这一项（`grep -A1 '^\[agents\]' ~/.codex/config.toml`），不是 16 或缺失就改成 16 并在汇报里说明**——配置改动只对新建任务生效，已有任务树保持创建时的容量，以实际拒绝信息为准。2026-09-26 在 sled-vail 用新建 SSH App 任务实测 16 个子代理与主代理同时 running、第 17 个返回 `agent thread limit reached`（见 [`docs/codex-app-ssh-multiagent.md`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/docs/codex-app-ssh-multiagent.md)）。满额时给已有空闲代理追加任务或等空位；不得把累计创建数说成同时运行数，也不得另开顶层任务规避容量限制。
+    - **持久化与互相通讯**：子代理按职责长期存在（如「模块 A 实现」「测试与验证」「审查」），**单个任务结束不关闭**，同职责的下一项工作交回原代理，保留其已积累的上下文。按宿主实际暴露的工具使用：
+      - `followup_task`：给已有子代理追加任务，目标空闲时触发新一轮、运行中则在消息边界送达。同职责的后续工作一律走它，不重新 `spawn_agent`。
+      - `send_message`：送达消息但**不触发新回合**，用于通报共享事实（如「`<文件>` 已由 `<代理>` 改完，按新接口调整」）；需要对方立即改向时用 `interrupt_agent`（中断当前回合，代理仍可接收消息与后续任务）。
+      - `wait_agent`：等待任意在世代理的邮箱更新；按官方建议长等（分钟级），不忙轮询、不反射式等待，等待期间主代理做不重叠的工作。
+      - `list_agents`：核对在世代理、任务名与状态；追加任务或汇报并发数之前先查。
+      - **关闭**：只在该职责整体结束、或需要腾出并发槽时关闭。宿主提供 `close_agent` 时按其语义——已完成的代理在关闭前仍占并发槽，不需要的不要长期挂着；2026-09-26 实测的 SSH App 暴露的是 V2 工具集（有 `list_agents` / `interrupt_agent`，无 `close_agent`），据 `rust-v0.157.0` 源码，空闲代理在容量不足时由宿主自动卸载，无需手动关闭。
+    - **共享目录与写入隔离**：所有代理共享同一容器、文件系统与当前工作目录，一个代理的编辑**立即**对其他所有代理可见，并行写入必须事先划界：
+      - 同一文件或共享产物只指定一个写入负责人，其他代理对该对象只读；并行修改按互不重叠的文件集合（官方称 disjoint write set）或独立 worktree 分隔。
+      - 委派写任务时写明该代理负责的文件 / 模块，并告知它**不是唯一在改代码的代理**：不回滚他人改动、按他人改动调整自己的实现，最终答复列出改过的文件路径。
+      - 子代理不暂存、不提交、不 push；整合前由主代理核对重叠、差异和 `git status --short`，他人在途改动按第 11 条处理。
+    - **委派说明**：每项委派（含给持久代理的 `followup_task`）都要明确目标、上下文、可读与可写范围、禁止事项、依赖、交付内容和验收方式；依任务需要限制文件、目录、分支或工作区，避免子代理自行推断更大范围。
     - **模型档位**：子代理及递归子代理的模型档位不得高于本次用户主请求所用模型；默认继承父代理模型，轻量任务可酌情降档。若无法可靠比较档位，则沿用父代理模型。模型档位与推理强度是独立设置；本条只限制前者，推理强度按任务独立选择。
-    - **并发容量**：按当前宿主实际提供的并发容量安排工作。容量已满时复用已有代理或等待空位；不得把累计创建数说成同时运行数，也不得另开顶层任务规避容量限制。
-    - **整合与责任**：子代理须交回结论、证据、验证结果和未解决事项。主代理负责整合、最终验收及经授权的提交；不得扩大授权、覆盖他人改动或将他人内容混入提交。
+    - **整合与责任**：子代理交回结论、证据（第 22 条）、验证结果、改动文件清单和未解决事项；主代理负责整合、最终验收及经授权的提交（第 11 条），对用户的汇报按第 1 条用中文。
 
-    来源：2026-09-26 用户要求「尽可能积极调用使用multi agent来实现 但是分隔要保持清晰」及「子agent要小于等于主要请求agent的规格」，并澄清只限制模型档位、不限制推理强度；OpenAI 官方文档 [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents)。
+    来源：2026-09-26 用户要求「尽可能积极调用使用multi agent来实现 但是分隔要保持清晰」「子agent要小于等于主要请求agent的规格」（并澄清只限制模型档位、不限制推理强度），及同日补充「codex强调修改文件要保持subagent之间的任务的的清晰 尽可能多并发 完全是multi agent的处理流程」「而codex一般是持久化的运行多agent 几个agent互相通讯 不会因为单个任务结束就关闭这个agent」；OpenAI 官方文档 [Subagents](https://learn.chatgpt.com/docs/agent-configuration/subagents)；openai/codex `rust-v0.157.0` 源码 `codex-rs/prompts/src/multi_agent_instructions.rs`、`codex-rs/core/src/tools/handlers/multi_agents_spec.rs`、`codex-rs/core/src/agent/role.rs`、`codex-rs/core/src/tools/spec_plan.rs`、`codex-rs/core/src/agent/control/residency.rs`；本机实测 [`docs/codex-app-ssh-multiagent.md`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/docs/codex-app-ssh-multiagent.md)。
 
 ## 附录 A：占位符表
 
@@ -349,7 +369,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 | `<FAST_LOCAL_CACHE_ROOT>` | `UV_CACHE_DIR` 等缓存落点 | 第 3、14 条 |
 | `<PY_INTERPRETER>` | 钉死的 uv managed 解释器绝对路径 | 第 3 条 |
 | `<SHARED_ROOT>` / `<LOCAL_ROOT>` / `<SINGLE_NODE_ROOT>` | 判定命令里探测的共享盘 / 本机盘 / 单机工作盘路径 | 第 0、8 条 |
-| `<GL_REPO>` | 集群侧可见的仓库绝对路径 | `greatlakes.md`、`templates/job.sbatch` |
+| `<GL_REPO>` | 集群侧可见的仓库绝对路径 | `greatlakes.md`、`templates/hold_job.sbatch`、`templates/run_in_hold.sh` |
 | `<GL_SUBMIT>` | 提交器路径（默认本仓库 `scripts/gl_submit.py`） | `greatlakes.md` |
 | `<GL_ACCOUNT>` / `<GL_PARTITION>` | Slurm 账户 / 分区 | 第 8 条、`greatlakes.md` |
 | `<SSH_HOST>` | `~/.ssh/config` 里的 ControlMaster 别名 | `greatlakes.md` |
@@ -357,23 +377,25 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 | `<COMMIT_SUBJECT_STYLE>` | commit subject 体例 | 第 11 条 |
 | `<PLAN_EXEMPLAR>` | 计划密度标杆文档 | 第 2 条 |
 
-## 附录 B：四个源仓库的实际取值（2026-09-18 口径；以各仓库自己的 `AGENTS.md` 为准）
+<!-- AGENTMETARULES:END common-agents -->
+
+## 附录 B：四个源仓库的实际取值（2026-09-18 口径，⚠ 为 2026-09-26 复查注记；以各仓库自己的 `AGENTS.md` 为准；本附录不进标记块）
 
 | 占位符 | robomme_policy_learning_MotionJEPA（环境 A / 环境 B） | robomme_benchmark_MotionJEPA | robomme-eval-GL | MotionJEPA（`v6.1.2-awsNoSlurm`） |
 |---|---|---|---|---|
-| `<WORK_ROOT>` | `/data/hongzefu/robomme_policy_learning_MotionJEPA` / `/scratch/hongze/robomme_policy_learning_MotionJEPA` | `/data/hongzefu/robomme_benchmark_MotionJEPA`（按其规则 8「仓库本体在本机盘」推定） | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme-eval-GL`（本机与集群共用） | `/scratch/hongze/MotionJEPA` |
+| `<WORK_ROOT>` | `/data/hongzefu/robomme_policy_learning_MotionJEPA` / `/scratch/hongze/robomme_policy_learning_MotionJEPA` | `/data/hongzefu/robomme_benchmark_MotionJEPANewTask`（⚠ `newtaskRelease-v5` 分支检出，2026-09-26 口径；`dataset-gen-NewSeed` 检出在 `/data/hongzefu/robomme_benchmark_MotionJEPA`） | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme-eval-GL`（本机与集群共用；⚠ 2026-09-18 已清空归档，远端 `v2-vail-eval-0917` @ `d4aeff7b` 保留，清理记录在同级 `robomme-eval-GL-cleanup-20260918T032848Z/`） | `/scratch/hongze/MotionJEPA`（AWS）；⚠ vail 侧检出 `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/MotionJEPA` |
 | `<ARCHIVE_ROOT>` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme_policy_learning_MotionJEPA`（环境 A；评估任务经用户授权例外可写） / 无 | 无 | 无 | 无 |
 | `<STORE_ROOT>` | `v1-store/` | `artifacts/`（另有 `data/robomme_data_h5/` 官方参考数据） | `eval-store/` | `runs/`、`dataset-4env-*` |
 | `<DOC_ROOT>` | `docs/training-doc/`、`docs/dataset-build-doc/` | `AGENTS.md` 账本（当前进度 + 追加式执行日志） | `docs/eval-doc/` | `docs/training-doc/`、`docs/dataset-build-doc/` |
 | `<FAST_LOCAL_CACHE_ROOT>` | `v1-store/cache/` / `/scratch/hongze/.cache` | 默认 | `$HOME/.cache/uv`（`XDG_CACHE_HOME` 等指 `eval-store/cache/`） | `/scratch/hongze/` 下 |
 | `<PY_INTERPRETER>` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/uv-python/cpython-3.11.14-linux-x86_64-gnu/bin/python3.11`（环境 A） | — | 同左 | 同左（历史，AWS 分支不用） |
-| `<GL_REPO>` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme_policy_learning_MotionJEPA` | — | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme-eval-GL` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/MotionJEPA` |
+| `<GL_REPO>` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme_policy_learning_MotionJEPA` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme_benchmark-newtask-gl`（⚠ 2026-09-26 补） | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme-eval-GL`（⚠ 已清空） | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/MotionJEPA` |
 | `<GL_SUBMIT>` | `scripts/training/gl_submit.py` | — | — | `scripts/train-script-hongzefu/gl_submit.py` |
 | `<GL_ACCOUNT>` / `<GL_PARTITION>` / `<SSH_HOST>` | `chaijy2` / `spgpu` / `greatlakes` | 同 | 同 | 同 |
 | `<PROTECTED_DIRS>` | — | `src/robomme/`（默认冻结 `src/robomme/env_record_wrapper/RecordWrapper.py`） | — | — |
 | `<COMMIT_SUBJECT_STYLE>` | `commitV<x>.<y>:` + `docs:` / `fix:` / `revert:` | `<大>.<小>[.<修订>] <描述>`（如 `2.9.2 变体简图出图验证与账本补记`） | 照 `git log` | `commitV<x>.<y>:` |
-| `<PLAN_EXEMPLAR>` | `0829-destructive-restructure-plan.md` | `motion-memory-plan.md`（远端链接） | — | `v3-destructive-restructure-plan.md`（旧名，对应 policy 的 `0829-…`） |
+| `<PLAN_EXEMPLAR>` | `0829-destructive-restructure-plan.md` | `0901-motion-memory-plan.md`（在 policy 仓库；⚠ 原链接 `v2-motionmem/motion-memory-plan.md` 已 404） | — | `0829-destructive-restructure-plan.md`（在 policy 仓库；⚠ 其 AGENTS 原文写的 `v3-destructive-restructure-plan.md` 不存在于 MotionJEPA 仓库） |
 
 ## 附录 C：规则来源与未迁移清单
 
-本正本即通用规则全集，整合自 [`README.md`](README.md)「来源锚定」列出的四个仓库分支；逐条来源见 [`docs/sources.md`](docs/sources.md)，冲突取舍见 [`docs/merge-decisions.md`](docs/merge-decisions.md)，明确不收的项目专属内容见 [`docs/excluded.md`](docs/excluded.md)。项目仓库接入本正本时，须在自己的 `AGENTS.md`「规则来源」段写明所引用的本仓库 commit sha，并逐条列出未采用的条目及原因（例：纯评测仓库可不采用第 10、13、16、18 条，但要写明）。Claude Code 独有机制（Workflow 与 Agent 模型、Monitor 工具、Skill 调用、plan mode）不写在本文件，见 [`CLAUDE.md`](CLAUDE.md)；两份文件冲突时**一律以本文件为准**。
+本正本即通用规则全集，整合自 [`README.md`](README.md)「来源锚定」列出的四个仓库分支；逐条来源见 [`docs/sources.md`](docs/sources.md)，冲突取舍见 [`docs/merge-decisions.md`](docs/merge-decisions.md)，明确不收的项目专属内容见 [`docs/excluded.md`](docs/excluded.md)。项目接入、标记块同步、未采用条目的记录，以及与 [`CLAUDE.md`](CLAUDE.md) 的分工与冲突处理，见第 25 条。

@@ -1,0 +1,30 @@
+{
+  "AGENTS.md": {
+    "start": "# RoboMME 数据生成脚本恢复仓库",
+    "end": "## 仓库目标",
+    "known_region_sha256": [
+      "ac03f5e7c7e4e67a5fa0cbd2f60bf57f3e9aebfae1bef1a3757000499fafc292",
+      "745b53fd05707e92b2a8b22016cf86511c733436c605b1de4b0fd4d58848cad0"
+    ],
+    "head": "benchmark/AGENTS.md.head.md",
+    "tail": "benchmark/AGENTS.md.tail.md",
+    "_note": "远端 268c41f（规则 1–12）与本地 12.153+（含规则 13）两个已知版本；账本区从「## 仓库目标」起字节不变"
+  },
+  "CLAUDE.md": {
+    "start": "# Claude Code 专属约定",
+    "end": null,
+    "known_region_sha256": [
+      "46a619462fbf5c9304923dbaed7f7094aec940921d4dd6921d08792ce20341cd"
+    ],
+    "head": "benchmark/CLAUDE.md.head.md",
+    "tail": "benchmark/CLAUDE.md.tail.md"
+  },
+  "greatlakes.md": {
+    "start": null,
+    "end": null,
+    "known_region_sha256": [],
+    "head": "benchmark/greatlakes.md.head.md",
+    "tail": "benchmark/greatlakes.md.tail.md",
+    "_note": "新建文件"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "AGENTS.md": {
+    "start": "## 强制规则",
+    "end": "## 项目概览",
+    "known_region_sha256": [
+      "22278ec82098116f034fa7bc84e38fedfe9405a5e1659e83529bd249911a7870"
+    ],
+    "head": "mjepa/AGENTS.md.head.md",
+    "tail": "mjepa/AGENTS.md.tail.md",
+    "_note": "前缀（前言、当前运行环境与存储边界）与项目概览及之后各节保留"
+  },
+  "CLAUDE.md": {
+    "start": "# CLAUDE.md",
+    "end": null,
+    "known_region_sha256": [
+      "22f9366e797d729116b2a15d4db2b5b13ea571c624aea8490e347c1d2bfcf1ac"
+    ],
+    "head": "mjepa/CLAUDE.md.head.md",
+    "tail": "mjepa/CLAUDE.md.tail.md"
+  },
+  "greatlakes.md": {
+    "start": "# greatlakes Slurm 提交规约（MotionJEPA）",
+    "end": null,
+    "known_region_sha256": [
+      "4a6b4dcfcbaa06d23484714ce71414cebe5716e631ef4b76f4136777cfc239f3"
+    ],
+    "head": "mjepa/greatlakes.md.head.md",
+    "tail": "mjepa/greatlakes.md.tail.md",
+    "_note": "现成脚本 / 冒烟实测 / Wan 抽取三节由 tail 逐字保留"
+  }
+}

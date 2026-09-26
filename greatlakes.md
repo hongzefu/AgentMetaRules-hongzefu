@@ -1,12 +1,14 @@
 # greatlakes Slurm 提交规约（通用正本）
 
-当端到端验证需要 GPU、本地 GPU 资源不足时，可以 ssh 到 UMich greatlakes 集群提交
-slurm job 跑训练 tentative。**以后所有 greatlakes 提交都必须遵守本文件；违反任何
+<!-- AGENTMETARULES:BEGIN common-greatlakes -->
+
+当端到端验证、数据生成或训练需要 GPU、本地 GPU 资源不足时，可以 ssh 到 UMich greatlakes 集群，
+通过 **48 h 占位 job** 拿到席位后把工作负载塞进去跑。**以后所有 greatlakes 提交都必须遵守本文件；违反任何
 "硬规则"前必须先与用户确认，不可静默放宽。** 本文件是通用正本：账户 / 分区 / 认证 / 路径 /
-venv / 提交流程 / sbatch 骨架 / PENDING 读法 / 放行制度都在这里；各项目的实测表、现成脚本清单
-与放行记录留在各项目仓库（不收进本文件的内容见 [`docs/excluded.md`](docs/excluded.md)）。
+venv / 提交流程 / 占位 job 与运行器骨架 / PENDING 读法 / 算力使用规则都在这里；各项目的实测表、现成脚本清单
+与放行记录留在各项目仓库（不收进本文件的内容见 [`docs/excluded.md`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/docs/excluded.md)）。
 占位符：`<GL_REPO>`（集群侧可见的仓库绝对路径）、`<GL_SUBMIT>`（提交器路径，默认本仓库
-[`scripts/gl_submit.py`](scripts/gl_submit.py)）、`<STORE_ROOT>`（仓库内产物根）、`<SSH_HOST>`
+[`scripts/gl_submit.py`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/scripts/gl_submit.py)）、`<STORE_ROOT>`（仓库内产物根）、`<SSH_HOST>`
 （`~/.ssh/config` 别名，默认 `greatlakes`）。无集群访问的环境本文件只作只读存档，见 `AGENTS.md` 第 8 条。
 
 ## 登录认证（硬规则，不可静默放宽）
@@ -23,25 +25,28 @@ push + 数字匹配，强烈推荐 TOTP），不要默认或复用上次选择�
 - `--account=chaijy2`：不能切换到任何其他 account（即便看到别的 account 可绕过排队也不行）；
 - `--partition=spgpu`：不能用其他 partition（如 standard / gpu / largemem）；
 - `--nodes=1` + `--ntasks-per-node=1`：永远只提单 node 单 task；
-- `--gpus-per-node` ≤ 2 且 `--time` ≤ 00:30:00：日常调试默认 1–2 GPU、20–30 分钟内；
-  如确实需要更长时间或更多 GPU，必须显式告知用户并征得确认，不可静默放宽；
-- 默认 `--mem=32G`（足以跑 tentative）；**实测 `--qos=interactive` 在 chaijy2/spgpu 下报
-  `Invalid qos specification`，不要再用** —— 默认不指定 qos 即可；遇到 `(AssocGrpMemLimit)`
-  时先降 `--mem`，正确的 qos 名待用 `sacctmgr show assoc user=hongzefu format=qos`
+- **一切工作负载一律经占位 job 运行，不把工作负载直接 `sbatch`**（用户 2026-09-25、2026-09-26 定）：先
+  `sbatch --gres=gpu:1 --time=48:00:00 --wrap='sleep infinity'` 拿席位，再用
+  `srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=<n> --gpu_cmode=shared <脚本>` 塞进去跑；
+  长训练同样在占位 job 内跑，预计超过 48 h 的训练靠 checkpoint 续到下一个占位 job，续跑前先问用户。
+- **占位 job 规格默认压到最低：`--cpus-per-task=1 --mem=24G`**，保证快速排队；唯一例外是 ManiSkill 多 worker
+  CPU 生成，按每 worker 1 CPU + 12 G 定席位（细则见「算力使用规则」第 4 条）。资源不够报错（OOM / CPU 争抢）
+  再重新提交更大的，不预先放大。
+- **`--time` 一律 `48:00:00`**，不按预计耗时缩短；跑完按清单 `scancel`（「算力使用规则」第 8、10 条）。
+- 不指定 `--qos`：**实测 `--qos=interactive` 在 chaijy2/spgpu 下报 `Invalid qos specification`，不要再用**；
+  遇到 `(AssocGrpMemLimit)` 时先降 `--mem`，正确的 qos 名待用 `sacctmgr show assoc user=hongzefu format=qos`
   （或 `sacctmgr show qos`）查清；`(AssocGrpGRES)` 表示 chaijy2 账户 GPU 配额已被组内
   其他用户占满，此时只能等他们的 job 退出，不可换 account / partition 绕开。
 
-任何超出上述 GPU 数或时限的生产长训均超出调试限制，提交前必须由用户显式确认。
-
 **账户配额口径**（`sacctmgr` 的 GrpTRES，全组共用，skill `greatlakes-usage` 动态读取不写死）：
 `GPU 20 | MEM 960 G | CPU 80`。GPU 与内存都会卡提交：GPU 满 → `PENDING (AssocGrpGRES)`，
-内存满 → `PENDING (AssocGrpMemLimit)`；要申请的 GPU **和** mem **都**得 ≤ 对应余量才提交得动。
+内存满 → `PENDING (AssocGrpMemLimit)`，CPU 满 → `PENDING (AssocGrpCpuLimit)`；要申请的 GPU、mem、CPU **都**得 ≤ 对应余量才提交得动。
 chaijy2 自己的 GPU 配额上限固定为 20，与 spgpu 分区物理 A40 总量 240 张（30 节点 × 8）是两回事。
 
-**放行制度**：超出日常包络（>2 GPU 或 >00:30:00）的 job 一律由用户逐次显式放行（逐 job 列出资源包络、
-walltime、用途），放行记录写在**项目仓库**的 `greatlakes.md` 或对应留档里，不写进本正本。
-同批多个 job 的调度方式（串行链 / 并行 / 节点排除清单）同样是放行内容之一，变更调度方式而不扩包络时
-也要记一笔。
+**放行制度**：超出「1 GPU × 48 h 占位、默认 1 CPU / 24 G 规格、一次最多 4 个」的申请——单 job 多 GPU、单 job 超默认规格、
+一次超过 4 个占位 job——由用户逐次放行（超规格先提交再提醒、超数量先审核；逐 job 列出规格、用途），
+放行记录写在**项目仓库**的 `greatlakes.md` 或对应留档里，不写进本正本。同批多个 job 的调度方式（串行链 / 并行 / 节点排除清单）
+同样是放行内容之一，变更调度方式而不扩包络时也要记一笔。
 
 ## 路径可见性（硬规则，不可静默放宽）
 
@@ -218,7 +223,7 @@ pexpect 建连要点（见 gl_submit.py / skill 的 `gl_master.py`）:匹配 `Pa
   `nvidia-smi -c 0`（`Insufficient Permissions`）、残留进程、驱动/重启、MPS（集群未配且 Vulkan 不走 MPS）。
   **不得用 `SAPIEN_DISABLE_RAY_TRACING=1` 绕开**——它换渲染路径，产物不再逐位可比。
 
-## 调试 slurm 脚本
+## 调试 slurm 脚本（同样塞进占位 job 跑）
 
 如需临时调试脚本，使用 `run_slurm_debug5min.sh` 这类独立名称，并遵守以下要点：
 
@@ -227,28 +232,38 @@ pexpect 建连要点（见 gl_submit.py / skill 的 `gl_master.py`）:匹配 `Pa
 - 只写项目覆盖白名单允许的键，不写与默认配置相同的字面量（项目若有覆盖项守卫测试会双重判违规）；
 - 不 `source` 任何 home 下的 rc 文件，python 用 NFS 绝对路径；
 - 脚本内局部变量一律全大写命名（小写 `key=value` 会被覆盖项正则误当成 Hydra 覆盖）；
-- run 目录 fail-loud 守卫写在 slurm 脚本里（训练入口对已存在目录常是 `makedirs(exist_ok=True)` 静默复用）。
+- run 目录 fail-loud 守卫写在运行器脚本里（训练入口对已存在目录常是 `makedirs(exist_ok=True)` 静默复用）。
 
-常用样板（完整可复制版本见 [`templates/job.sbatch`](templates/job.sbatch)，含计算节点判定 fail-fast 与 `exec` 交棒）：
+调试也不单独 `sbatch` 工作负载：先按下方骨架起占位 job，再把运行器塞进去。两个模板：占位 job
+[`templates/hold_job.sbatch`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/templates/hold_job.sbatch) 与运行器 [`templates/run_in_hold.sh`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/templates/run_in_hold.sh)
+（含计算节点判定 fail-fast 与 `exec` 交棒）。
+
+占位 job 骨架（默认规格）：
 
 ```
 #SBATCH --account=chaijy2
 #SBATCH --partition=spgpu
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=4
-#SBATCH --gpus-per-node=2
-#SBATCH --mem=32G
-#SBATCH --time=00:20:00
+#SBATCH --gres=gpu:1
+#SBATCH --gpu_cmode=shared
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=24G
+#SBATCH --time=48:00:00
+#SBATCH --job-name=<任务>-hold-<k>
 # 注：不要加 --qos=interactive（chaijy2/spgpu 报 Invalid qos specification），用默认 qos
 #SBATCH --output=<GL_REPO>/<STORE_ROOT>/logs/%x-%j.log
+sleep infinity
 ```
 
-sbatch 正文骨架：`set -euo pipefail` → `unset` 上一轮诊断遗留的兼容开关 → 计算节点判定
+提交后立刻把 JobID 追加到 `<日志目录>/hold-jobs-<任务名>.txt`。塞入运行：
+`srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=<n> --gpu_cmode=shared bash <运行器> <脚本与参数>`。
+
+运行器骨架：`set -euo pipefail` → `unset` 上一轮诊断遗留的兼容开关 → 计算节点判定
 （`hostname` 前缀 `gl*`、共享路径存在、本机路径不存在、无 micromamba/conda、GPU 型号 `NVIDIA A40`，
-任一不符 `exit 2`）→ `cd <GL_REPO>` → `exec bash <运行器> "gl-${SLURM_JOB_ID}" "${1:?必须指定 …}"`。
-日志三件套与 `trap cleanup EXIT` 下沉到运行器；sbatch 层用 `exec` 交棒，让 Slurm 的终止信号直达
-带清理 trap 的运行器而不是打到 wrapper 上留孤儿。run 名由 `SLURM_JOB_ID` 派生，天然唯一、可回查。
+任一不符 `exit 2`）→ `cd <GL_REPO>` → 日志三件套 + `trap cleanup EXIT` → 运行 `"$@"` 并写 `EXIT_CODE=` 尾行。
+run 名由 `SLURM_JOB_ID` 与任务名派生，天然唯一、可回查；Slurm 的终止信号经 `srun` 直达带清理 trap 的运行器，
+而不是打到 wrapper 上留孤儿。
 
 ## PENDING 状态读法
 
@@ -277,9 +292,10 @@ anon（+shmem）峰值（实测 3.85 GiB），file 页缓存永远填满剩余�
 
 - **分区只用用户授权的那个**（当前所有项目：`spgpu`）。排查问题时也不要往 `gpu` / `gpu-rtx6000` / `gpu_mig40` / `viz` 提探针 job——
   用户已明令禁止；且 compute mode 这类全局设置换分区无效。`viz`/`viz-long` 对 chaijy2 直接 `Access/permission denied`。
-- **占位 job 模式**：`sbatch --wrap='sleep infinity'`（1 GPU / 4 CPU / 32G / 48h）拿到资源后反复
-  `srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=4 --gpu_cmode=shared <脚本>` 进去跑；
-  每个 job 一条 tmux，每份日志一个 Monitor（续挂用 `tail -n 0`）。chaijy2 的 CPU 配额 80，会撞 `AssocGrpCpuLimit`。
+- **占位 job 模式**：`sbatch --gres=gpu:1 --cpus-per-task=1 --mem=24G --time=48:00:00 --wrap='sleep infinity'`（默认规格；
+  ManiSkill 多 worker 席位按「算力使用规则」第 4 条）拿到资源后反复
+  `srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=<n> --gpu_cmode=shared <脚本>` 进去跑；
+  每个 job 一条 tmux，每份日志一个 Monitor（续挂用 `tail -n 0`）。chaijy2 的 CPU 配额 80，多 worker 席位会撞 `AssocGrpCpuLimit`。
 - **本机 sled-vail 与 aspen 都能直读集群 NFS**（`/nfs/turbo/coe-chaijy-unreplicated/...`）：产物落 NFS、比较在本机跑、不搬数据；
   但 NFS 上逐帧读大文件很慢（144 局全字段比较 10～15 min、合并 40 GB 约 25 min），多条比较链并行只是分摊等待。
 - **删测试目录前先抠小文件**：`run.log`、`run_config.json`（hostname/GPU/驱动指纹）、`results/*.json`、`jobs/`、`logs/`、
@@ -312,23 +328,27 @@ anon（+shmem）峰值（实测 3.85 GiB），file 页缓存永远填满剩余�
   完成信号仍靠本机 Monitor `tail -F` 那份 NFS 日志；死活判断 `ssh sled-aspen 'tmux has-session -t <任务名>'`。
 - **纪律**：只测/只跑用户授权的 worker 数（当前：单 worker）；不要动别人的进程；`/data/hongzefu` 可作本地盘，大产物仍优先落 NFS 便于本机直读。
 
-## 算力使用规则（用户 2026-09-22 定，硬规则）
+## 算力使用规则（用户 2026-09-22 定、2026-09-25 与 2026-09-26 补，硬规则）
 
-用户原话：「greatlakes除了长训练job 尽可能都使用1gpu占用48小时 然后在全部结束后关闭 尽可能压低为1cpu24mem
+用户原话（2026-09-22）：「greatlakes除了长训练job 尽可能都使用1gpu占用48小时 然后在全部结束后关闭 尽可能压低为1cpu24mem
 除了maniskill多worker情形 如果报错不够 再重新提交 每次提交占位job默认尽可能用满4个超过4个都要用户审核数量
 如果1个job要超过1cpu24mem 先提交然后提醒用户 记得任务结束commit后要释放资源！ 尽可能优先先用aspen
 如果仓库都在data hongzefu上 那就不做并行 问用户」
+（2026-09-25）：「不要用sbatch 而是用占用job的形式 占用48小时的形式」「把以后都用占用48小时 跑完scancel 并且生成多worker需要这样大cpu/mem」
+（2026-09-26）：「greatlakes都采用占用job的形式 而不是现在这样 在修改代码之前 启动工作的时候 尽可能早的占卡 如果是maniskill多worker cpu生成的
+我记得这几个仓库有实测验证 其他情况下压低cpu mem保证快速排队 每次job都直接48小时 工作完成后kill 这样可以让排队和修改代码并行」
 
-1. **优先级：aspen 优先。** 能落在 NFS turbo 上的 compute，先看 aspen 的 GPU 有没有被其他用户占用（见「aspen 常态化使用」的查占用命令），空闲就用 aspen；aspen 不可用再上 greatlakes。
-2. **greatlakes 除长训练 job 外，一律用占位 job**：`1 GPU`、`--time=48:00:00`，全部任务结束后关闭。
-3. **占位 job 规格默认压到最低：`--cpus-per-task=1 --mem=24G`。** 唯一例外是 ManiSkill 多 worker 生成（按 worker 数给 CPU，规格见第 10 条）。
-   资源不够报错（OOM / CPU 争抢导致的失败）再重新提交更大的，不预先放大。
-4. **一次默认提交最多 4 个占位 job**，尽可能用满 4 个；**超过 4 个必须先让用户审核数量**。
-5. **单个 job 若需要超过 1 CPU / 24 GB：先提交，再提醒用户**（不阻塞，但必须提醒并说明原因）。
-6. **任务结束、commit 完成后必须释放资源**：`scancel` 全部占位 job，并在收尾汇报里写明已释放；`git status -sb` 干净不等于收尾完成。
-7. **仓库若都在本机 `/data/hongzefu`（不在 NFS turbo 上），不做跨机并行——先问用户**怎么处理（同步到 NFS 还是只在本机跑）。
+1. **优先级：aspen 优先。** 能落在 NFS turbo 上的 compute，先看 aspen 的 GPU 有没有被其他用户占用（见「aspen 常态化使用」的查占用命令），空闲就用 aspen；aspen 不可用再上 greatlakes。aspen 优先只适用于**整个任务都放得下 aspen** 的情形（第 11 条）。
+2. **greatlakes 一律占位 job，不把工作负载直接 `sbatch`**：`1 GPU`、`--time=48:00:00`、`--wrap='sleep infinity'`，工作负载全部用 `srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=<n> --gpu_cmode=shared` 塞进去跑；长训练也在占位 job 内跑，超过 48 h 的靠 checkpoint 续到下一个占位 job，续前问用户。原因：spgpu 全局常年 228/240 满卡、数百 GPU 在排队，直接 sbatch 的工作 job 起跑时间不可控；占位 job 一旦拿到席位，后续无论跑几轮都不用重新排队，跑完按 JobID `scancel` 释放。
+3. **开工先占卡（2026-09-26 定）**：任务一旦确定要上 greatlakes，**开工第一步、在读代码或改代码之前就提交占位 job**，让排队与修改代码并行；`sbatch` 后立刻把 JobID 追加到清单文件 `<日志目录>/hold-jobs-<任务名>.txt`（第 10 条的清单）；改代码期间用 skill `greatlakes-usage` 或 `squeue --me` 看席位是否到手，到手后再塞任务。提交前先用 skill 看哪个节点同时有空 GPU + 足够空 CPU + 空内存，否则会 `PENDING (Resources)`（2026-09-25 实测：查询到提交之间 gl1510 的那张空卡就被别的组拿走，第二个席位只能排队）。
+4. **规格默认压到最低：`--cpus-per-task=1 --mem=24G`**，保证快速排队。**唯一例外是 ManiSkill 多 worker CPU 生成**（2026-09-25 本机实测定）：瓶颈在 CPU 不在 GPU——单 worker 峰值内存 9 G（PatternLock 最重）、显存不到 2 G、锁 1 核只比不限核慢 1.4 倍，因此**每 worker 配 1 CPU + 12 G**，一张 A40 带 16 个 worker 毫无压力；参考席位 `--cpus-per-task=16 --mem=192G`（已批准并实提），两个这样的席位（2 GPU / 32 CPU / 384 G）共 32 个 worker，折合约 22 个 RTX 6000 Ada worker，比本机 8 worker 快约 2.5 倍；塞入时每席 `--draw-workers 16 --workers 16`，并必须设 `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1`（不限线程时单 worker 会瞬时吃到 13.8 核，多 worker 同机互相踩）。其他情况一律压低 CPU / 内存；资源不够报错（OOM / CPU 争抢导致的失败）再重新提交更大的，不预先放大；跑之前先在本机用进程树采样器量一次单 worker 的 RSS / CPU / 显存峰值再定 `--mem`，不要按训练 job 的 MaxRSS 贴边法估。
+5. **时长一律 48 小时**：每个占位 job 直接 `--time=48:00:00`，不按预计耗时缩短。
+6. **一次默认提交最多 4 个占位 job**，尽可能用满 4 个；**超过 4 个必须先让用户审核数量**。大 CPU / 内存席位同样计入。
+7. **单个 job 若需要超过 1 CPU / 24 GB：先提交，再提醒用户**（不阻塞，但必须提醒并说明原因）。
+8. **工作完成后 kill**：任务结束、commit 完成后必须释放资源——按第 10 条的清单逐个 `scancel <jobid>` 全部占位 job，并在收尾汇报里写明已释放；`git status -sb` 干净不等于收尾完成。
+9. **仓库若都在本机 `/data/hongzefu`（不在 NFS turbo 上），不做跨机并行——先问用户**怎么处理（同步到 NFS 还是只在本机跑）。
 
-8. **绝不取消不是本会话提交的 job（硬规则，2026-09-22 事故后立的）。**
+10. **绝不取消不是本会话提交的 job（硬规则，2026-09-22 事故后立的）。**
    - **禁止 `scancel -u $USER`，禁止按名字模式批量取消。** 取消只能按**本会话自己记录的具体 JobID** 逐个 `scancel <jobid>`。
    - 本会话每次 `sbatch` 后必须把 JobID 追加到清单文件（`<日志目录>/hold-jobs-<任务名>.txt`），收尾释放只读这个清单。
    - 用户说"占位 job 都取消"时，只取消清单内的；同账户下清单外的 job（别的会话/别的任务在用）**列出来问用户，不动**。
@@ -336,27 +356,22 @@ anon（+shmem）峰值（实测 3.85 GiB），file 页缓存永远填满剩余�
      （61721503～06，各 1 GPU / 1 CPU / 24 GB / 48 h，12:24 起跑，另一个 eval 任务的占位 job）。
      "都取消"指的是**我的**占位 job；同账户 ≠ 同会话。取消 job 是不可逆、影响他人工作的动作，拿不准就问，不要顺手一把清。
 
-9. **同一任务不得异构拆分（用户 2026-09-22 定）。** 需要大量并行时整批提交 greatlakes；**不得一半 greatlakes 一半 aspen**，
+11. **同一任务不得异构拆分（用户 2026-09-22 定）。** 需要大量并行时整批提交 greatlakes；**不得一半 greatlakes 一半 aspen**，
    不允许同一任务跨机器混跑——不同 GPU 架构的产物不可逐位比、时序不同重规划也不同，混在一批里既没法当同一份数据用，
    也没法对拍。aspen 优先只适用于**整个任务都放得下 aspen** 的情形；放不下就整批上集群。
 
-10. **凡是要在 greatlakes 上跑的工作负载一律「48 h 占位 job + `srun --overlap` 塞进去跑 + 跑完 `scancel`」，不得把工作负载本身直接 `sbatch`（用户 2026-09-25 定）。**
-    用户原话：「不要用sbatch 而是用占用job的形式 占用48小时的形式」「把以后都用占用48小时 跑完scancel 并且生成多worker需要这样大cpu/mem」。
-    - 原因：spgpu 全局常年 228/240 满卡、数百 GPU 在排队，直接 sbatch 的工作 job 起跑时间不可控；占位 job 一旦拿到席位，后续无论跑几轮都不用重新排队，跑完按 JobID `scancel` 释放。
-    - **多 worker 生成的占位规格（2026-09-25 本机实测定）**：瓶颈在 CPU 不在 GPU——单 worker 峰值内存 9 G（PatternLock 最重）、显存不到 2 G、锁 1 核只比不限核慢 1.4 倍。因此**每 worker 配 1 CPU + 12 G**，一张 A40 带 16 个 worker 毫无压力。参考规格（已批准并实提）：
-      ```bash
-      sbatch --account=chaijy2 --partition=spgpu --nodes=1 --ntasks-per-node=1 --gres=gpu:1 --gpu_cmode=shared \
-             --cpus-per-task=16 --mem=192G --time=48:00:00 --job-name=<任务>-hold-<k> \
-             --output=<日志目录>/%x_%j.out --wrap='sleep infinity'
-      ```
-      两个这样的席位（2 GPU / 32 CPU / 384 G）共 32 个 worker，折合约 22 个 RTX 6000 Ada worker，比本机 8 worker 快约 2.5 倍。塞入时每席 `--draw-workers 16 --workers 16`，并必须设 `OMP_NUM_THREADS=1 MKL_NUM_THREADS=1`（不限线程时单 worker 会瞬时吃到 13.8 核，多 worker 同机互相踩）。
-    - 这种大 CPU/内存席位仍受第 4、5 条约束：数量超 4 个、单 job 超 1 CPU / 24 G 都要按原规则报用户；提交前先用 skill `greatlakes-usage` 看哪个节点同时有空 GPU + 足够空 CPU + 空内存，否则会 `PENDING (Resources)`（2026-09-25 实测：查询到提交之间 gl1510 的那张空卡就被别的组拿走，第二个席位只能排队）。
-    - 跑之前先在本机用进程树采样器量一次单 worker 的 RSS / CPU / 显存峰值再定 `--mem`，不要按训练 job 的 MaxRSS 贴边法估。
-
-标准提交（占位 job，默认规格）：
+标准提交（占位 job，默认规格；完整模板见 [`templates/hold_job.sbatch`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/templates/hold_job.sbatch)）：
 ```bash
-sbatch --account=chaijy2 --partition=spgpu --gres=gpu:1 --cpus-per-task=1 --mem=24G --time=48:00:00 \
-       --job-name=hold-1 --output=<日志目录>/%x-%j.log --wrap='sleep infinity'
+sbatch --account=chaijy2 --partition=spgpu --nodes=1 --ntasks-per-node=1 --gres=gpu:1 --gpu_cmode=shared \
+       --cpus-per-task=1 --mem=24G --time=48:00:00 \
+       --job-name=<任务>-hold-<k> --output=<日志目录>/%x-%j.log --wrap='sleep infinity'
 ```
-进去跑：`srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=1 --gpu_cmode=shared <脚本>`。
-ManiSkill 多 worker 例外：`--cpus-per-task=<worker 数>`，`--mem=<worker 数 × 12G>`，提交后提醒用户（第 10 条）。
+ManiSkill 多 worker 席位（第 4 条；提交后按第 7 条提醒用户）：
+```bash
+sbatch --account=chaijy2 --partition=spgpu --nodes=1 --ntasks-per-node=1 --gres=gpu:1 --gpu_cmode=shared \
+       --cpus-per-task=16 --mem=192G --time=48:00:00 \
+       --job-name=<任务>-hold-<k> --output=<日志目录>/%x_%j.out --wrap='sleep infinity'
+```
+进去跑：`srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=<n> --gpu_cmode=shared bash <运行器> <脚本与参数>`（运行器模板见 [`templates/run_in_hold.sh`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/templates/run_in_hold.sh)）。
+
+<!-- AGENTMETARULES:END common-greatlakes -->

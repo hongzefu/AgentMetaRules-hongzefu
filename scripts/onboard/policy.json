@@ -1,0 +1,31 @@
+{
+  "AGENTS.md": {
+    "start": "## 强制规则（最高优先级）",
+    "end": null,
+    "known_region_sha256": [
+      "c025a17380006cc44d72504a29c905cdac307a4a4c781a5750cf11d9ff242fd5"
+    ],
+    "head": "policy/AGENTS.md.head.md",
+    "tail": "policy/AGENTS.md.tail.md",
+    "_note": "前缀（标题、前言、运行环境判定）保留；旧 项目 scope / 规则来源 由 tail 重写"
+  },
+  "CLAUDE.md": {
+    "start": "# CLAUDE.md",
+    "end": null,
+    "known_region_sha256": [
+      "21c081607533c589b8a5a9b979ec443764e27cd7b2d279424f885c3ebe1409a3"
+    ],
+    "head": "policy/CLAUDE.md.head.md",
+    "tail": "policy/CLAUDE.md.tail.md"
+  },
+  "greatlakes.md": {
+    "start": "# greatlakes Slurm 提交规约（MotionJEPA）",
+    "end": "## 放行记录（robomme framesamp v2 计划，2026-08-27）",
+    "known_region_sha256": [
+      "8986f0d7f2f0f92b64abbd0cef44d902affae691b181a2632077501a287ac70a"
+    ],
+    "head": "policy/greatlakes.md.head.md",
+    "tail": "policy/greatlakes.md.tail.md",
+    "_note": "放行记录节保留在尾部"
+  }
+}

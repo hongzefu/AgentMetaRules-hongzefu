@@ -1,6 +1,6 @@
 # 冲突与取舍
 
-四个仓库同一条规则存在不同版本时，按「更新的日期 > 更完整的表述 > 与实配一致」三条取舍；每处取舍并列两边原文。源文件缩写同 [`sources.md`](sources.md)。
+四个仓库同一条规则存在不同版本时，按「更新的日期 > 更完整的表述 > 与实配一致」三条取舍；每处取舍并列两边原文。源文件缩写同 [`sources.md`](sources.md)。A–O 是建库时（2026-09-18）的四仓库版本冲突；P–R 是 2026-09-26 的机制取舍（正本原写法 vs 宿主实际加载行为 / 用户新决定），体例相同。
 
 ## A. commit 后是否必须 push
 
@@ -17,6 +17,8 @@
 - mjepa CLAUDE：`获准任务中真正独立的子任务可并行……不以「多开代理近乎免费」为依据扩大范围或重复派发。`
 
 **取舍**：两者不矛盾——一个说范围内的并发度，一个说范围本身。正本 CLAUDE.md 合并为「已定范围内并行不设上限；不以此为由扩大范围或重复派发，并遵守宿主并发与资源限制」。
+
+**2026-09-26 复查**：「近乎免费」只指等待时间（并行时总等待由最慢的一个决定），token 用量与宿主配额照算，不能读成「多派不花钱」。Claude 与 Codex 两套子代理范式的分立见 Q。
 
 ## C. `greatlakes.md` 权威源指向
 
@@ -105,6 +107,8 @@
 
 **取舍**：正本用 `0829-destructive-restructure-plan.md` 并注明所在仓库；benchmark 六个特征保留为通用写法；项目可在 `<PLAN_EXEMPLAR>` 指定自己的标杆。
 
+**2026-09-26 复查**：policy 的 `motion-memory-plan.md` 已按 `MMDD-` 命名改为 `0901-motion-memory-plan.md`，benchmark `AGENTS.md` 里指向旧名的远端链接已 404；mjepa 规则 8 引用的 `v3-destructive-restructure-plan.md` 不在 MotionJEPA 仓库内，实指 policy 仓库的 `0829-destructive-restructure-plan.md`（旧名）。项目填 `<PLAN_EXEMPLAR>` 时写现名、注明所在仓库，并核实链接可达。
+
 ## N. 留档体例：三件套 vs 十二节 README
 
 - mjepa AGENTS 规则 12：run 目录下单一 `README.md`，十二节体例（①一句话结论 … ⑫归档文件清单），两段式写入。
@@ -118,6 +122,35 @@
 - policy / mjepa greatlakes.md「资源约束」：`实测 --qos=interactive 在 chaijy2/spgpu 下报 Invalid qos specification，不要再用 —— 默认不指定 qos 即可；……正确的 qos 名待用 sacctmgr show assoc user=hongzefu format=qos（或 sacctmgr show qos）查清`
 
 **取舍**：evalgl 的摘要句把针对 `--qos=interactive` 的实测禁令放大成了对整个参数的绝对禁止，与 greatlakes.md「正确 qos 名待查清」矛盾。正本第 8 条按 greatlakes.md 原文写「不要写 `--qos=interactive`，默认不指定 qos，确需指定时先 `sacctmgr` 查清」。
+
+## P. 接入方式：引用正本 vs 同步副本
+
+- 模板原写法（`templates/AGENTS.project.md`，2026-09-18）：`本仓库的通用工作规则以 AgentMetaRules-hongzefu 的 AGENTS.md 为正本，引用 commit <正本 sha>（回流时更新）。本文件只写：① 项目专属的判据表与占位符取值；② 对正本条目的显式覆盖项（按正本条号引用）；③ 项目 scope 与规则来源。`——项目文件里只有「引用 sha + 覆盖项」，通用正文不在项目仓库内。
+- 宿主的实际加载行为：
+  - Codex 只加载 `~/.codex/AGENTS.md` 与仓库内（仓库根到当前工作目录路径上）的 `AGENTS.md`，不会顺着链接去读正本；且默认 `project_doc_max_bytes` 只读前 32 KiB，超出部分静默截断（正本 `AGENTS.md` 已超过 7 万字节）。
+  - Claude Code 的 `@` 导入只认本地路径，导入不了 GitHub URL；正本不在本机时，引用写法等于没有通用规则。
+  - AWS 单机环境（mjepa `v6.1.2-awsNoSlurm`、policy 环境 B）没有本仓库检出，引用写法在那里根本读不到正本。
+- 用户 2026-09-26 原话：「每个仓库都要有一份agentsmd greatlake md等等 AgentMetaRules只负责每次同步的时候检查一下 平时只在仓库内交互 不要每次都读github太麻烦了」；「是否可以只推这次修改的md 其他的都不动？精确按照文件来」。
+
+**取舍**：改为「标记块同步副本」。三份正本各自圈出通用块（`common-agents` / `common-claude` / `common-greatlakes`），项目仓库用同名标记圈出逐字副本，BEGIN 行带 `src=<正本 commit sha> blob=<块 blob id>`；`sync_rules.py check` 只读比对漂移（末行 `SYNC_SUMMARY=PASS|FAIL`），`apply` 只替换标记块、不动标记外内容。判据表、占位符取值、覆盖项与项目专属规则一律留在标记外。块内相对链接改为 `https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/...` 绝对链接——副本落在项目仓库后，相对链接会指向项目内不存在的路径。回流只提交这次改到的规则文件，带在途工作的仓库用 `land_rules_commit.py`（远端侧 plumbing 提交 + 本地侧合并提交）。副本同样超过 32 KiB，本机 `~/.codex/config.toml` 设 `project_doc_max_bytes = 131072`；其他装了 Codex 的机器也要同样设置，否则后半截规则会静默丢失。
+
+## Q. 子代理范式：Claude 与 Codex 各一套
+
+- Claude Code 侧：
+  - 用户 2026-09-26 原话：「claude subagent强调在一个时间点位置可以积极多调用 因为同时启动多个subagent基本是免费的 但是如果要修改文件要保持subagent之间的任务的的清晰」；「对于claude而言 用户的直观感受是这样的直接调用 并行是完全ok的 一般在一个时间节点上同时放出一堆agent 然后用完即废弃 并且大部分情况不改代码」。
+  - 官方事实（出处见 [`subagent-claude-vs-codex.md`](subagent-claude-vs-codex.md)）：Agent 工具子代理每次调用新建实例、全新上下文，只把最终结果交回主会话；同一条消息里可并行发出多个；默认与主会话共用同一工作目录，但可用 worktree 隔离给子代理独立 git worktree；并发上限 20。
+- Codex 侧：
+  - 用户 2026-09-26 原话：「codex强调修改文件要保持subagent之间的任务的的清晰 尽可能多并发 完全是multi agent的处理流程」；「而codex一般是持久化的运行多agent 几个agent互相通讯 不会因为单个任务结束就关闭这个agent」。
+  - 官方与源码事实（`rust-v0.157.0`）：子代理是持久线程，一项任务结束后不关闭，可用 `followup_task` 追加任务、`send_message` 互相通讯；本机 SSH App 实测暴露的是 V2 工具集（`spawn_agent` / `followup_task` / `send_message` / `wait_agent` / `interrupt_agent` / `list_agents`），没有 V1 的 `close_agent`，空闲代理由宿主按 `residency.rs` 自动卸载；子代理与主代理共享同一工作目录；新任务 16 路并发、第 17 路被拒（[`codex-app-ssh-multiagent.md`](codex-app-ssh-multiagent.md)）。
+
+**取舍**：不统一成一套。`CLAUDE.md`「Workflow 与 Agent 模型」节拆成两块：「Agent 工具子代理：一个时间点放一批、用完即弃、默认只读」（要改文件时写入边界清晰）与「Workflow」（逐次审批）；`AGENTS.md` 第 26 条写 Codex「完全按多代理流程工作——持久化子代理、尽可能多并发、写入边界清晰」。两边的共同底线只写一次、两边引用：第 2 条（并行不扩大授权）、第 11 条（不覆盖、不提交他人在途改动）、第 22 条（证据与判定行）；第 25 条「跨宿主中立」兜底——Claude 的模型名与 Workflow 约束不施加给 Codex，第 26 条也不约束 Claude。
+
+## R. greatlakes：日常包络 vs 占位 job
+
+- 原 `greatlakes.md`「资源约束」：`--gpus-per-node ≤ 2 且 --time ≤ 00:30:00：日常调试默认 1–2 GPU、20–30 分钟内`；`默认 --mem=32G`；放行制度 `超出日常包络（>2 GPU 或 >00:30:00）的 job 一律由用户逐次显式放行`。这套包络与同文件 2026-09-22「算力使用规则」第 2 条「除长训练 job 外，一律用占位 job：1 GPU、48 h」并存，互相矛盾。
+- 用户 2026-09-26 原话：「greatlakes都采用占用job的形式 而不是现在这样 在修改代码之前 启动工作的时候 尽可能早的占卡 如果是maniskill多worker cpu生成的 我记得这几个仓库有实测验证 其他情况下压低cpu mem保证快速排队 每次job都直接48小时 工作完成后kill 这样可以让排队和修改代码并行」。
+
+**取舍**：一律 48 h 占位 job（`--gres=gpu:1 --time=48:00:00 --wrap='sleep infinity'`），一切工作负载经 `srun --jobid=<hold> --overlap --exact --gpu_cmode=shared` 塞入；默认 `--cpus-per-task=1 --mem=24G`，ManiSkill 多 worker 每 worker 1 CPU + 12 G；开工先占卡（任务确定上 GL 时第一步、改代码之前就 sbatch，JobID 记入 `<日志目录>/hold-jobs-<任务名>.txt`），让排队与改代码并行；跑完按清单逐个 `scancel`。放行制度改为超出「1 GPU × 48 h、默认规格、一次 4 个」才逐次放行。模板随之把 `templates/job.sbatch` 换成 [`templates/hold_job.sbatch`](../templates/hold_job.sbatch)（占位 job）+ [`templates/run_in_hold.sh`](../templates/run_in_hold.sh)（经 srun 塞入的运行器，保留原计算节点判定 fail-fast）。
 
 ## 口径统一清单（不算冲突、但各处不一致的细节）
 
@@ -134,9 +167,18 @@
 | 标杆文件名 | `0829-destructive-restructure-plan.md` | AGENTS.md 第 2 条 |
 | Claude Code 版本号 | 正文去版本号，脚注保留「首次实测于 2.1.232」 | CLAUDE.md |
 | tmux 精确匹配 | `-t '=名'` | AGENTS.md 第 7 条、templates |
-| sbatch 判定的 `! command -v` 形态 | 统一为 `|| { echo …; exit 2; }`，退出码一致 | templates/job.sbatch |
+| sbatch 判定的 `! command -v` 形态 | 统一为 `\|\| { echo …; exit 2; }`，退出码一致 | templates/run_in_hold.sh（原 templates/job.sbatch，2026-09-26 删除） |
 | greatlakes.md 标题 | 「greatlakes Slurm 提交规约（通用正本）」（原两份都写「（MotionJEPA）」，policy 版属残留） | greatlakes.md |
 | greatlakes.md `--output` 路径 | `<GL_REPO>/<STORE_ROOT>/logs/%x-%j.log`（原写 `…/MotionJEPA/output/logs/`，policy 版属残留） | greatlakes.md |
 | run 覆盖参数写法 | 「覆盖 / 强制类参数（如 `overwrite=true`）」，泛化表述 + 举例；greatlakes.md 原 `overwrite=True` 统一小写 | AGENTS.md 第 6 条、greatlakes.md「调试 slurm 脚本」 |
 | 调试脚本的覆盖白名单守卫 | 「项目若有覆盖项守卫测试会双重判违规」（原写 MotionJEPA 的 `test_train_script_overrides.py`） | greatlakes.md「调试 slurm 脚本」 |
 | 判据表模板 | 首行加「主机名（`hostname` 前缀）」（判定命令已打印 `hostname`、sbatch 也以它为首条 fail-fast，表里原无行位） | AGENTS.md 第 0 条、templates/AGENTS.project.md |
+| 第 13 条写法（2026-09-26） | 同构第 12 条、只列差异 | AGENTS.md 第 13 条 |
+| 吞吐基准记介质（2026-09-26） | 并入第 16 条（原第 14 条末项） | AGENTS.md 第 14、16 条 |
+| 资源包络放行（2026-09-26） | 只在第 8 条写，细则见 `greatlakes.md` 放行制度 | AGENTS.md 第 8 条 |
+| 他人在途改动（2026-09-26） | 只在第 11 条完整写，其余条目引用 | AGENTS.md 第 11 条（第 26 条、CLAUDE.md 引用） |
+| 授权不扩大（2026-09-26） | 只在第 2 条写 | AGENTS.md 第 2 条（第 26 条、CLAUDE.md 引用） |
+| 判定行（2026-09-26） | 只在第 22 条写 | AGENTS.md 第 22 条 |
+| Monitor 管道与 pgrep 括号技巧（2026-09-26） | `AGENTS.md` 第 7 条写全，`CLAUDE.md` Monitor 改为引用 | CLAUDE.md、AGENTS.md 第 7 条 |
+| 来源分支名（2026-09-26） | 现名 `v2-eval-0917` / `PolicyEvalThirdParty-v2-eval-0917`（sha 不变）；evalgl `v2-vail-eval-0917` 未改名 | README.md、docs/sources.md、docs/excluded.md |
+| 通用块内链接（2026-09-26） | 相对链接一律改为 `https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/...` 绝对链接（见 P） | AGENTS.md、CLAUDE.md、greatlakes.md 通用块 |

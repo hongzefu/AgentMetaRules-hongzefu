@@ -4,7 +4,7 @@
 
 **例外（有意保留、不视为项目值泄漏）**：带日期的实测出处与事故复盘里的项目名、工作负载名、run 名与 Slurm job 号——第 7 条「2026-08-06 在 MotionJEPA 仓库做 nohup vs tmux 六判据实测」「2026-08-24 MotionJEPA 仓库两次实测踩中」「一条在跑的 400 ep Wan 抽取」、第 12 条「MotionJEPA v7 前三个 run 都是先起跑后提交」、第 13 条「2026-08-18 随 MotionJEPA v8-400ep 建库定稿」、第 16 条「2026-08-24 v1-e2e-b64 中位 100% 掩盖了均值仅 69-70%」、第 21 条引号内的用户原话 `src/robomme`、`greatlakes.md` 的「MotionJEPA v7 双卡 bf16 的 4 CPU / 16G 降配实例」与 job 号 57854615 / 57856154 等——用于回溯证据来源，与保留 2026-08-14 PENDING 碎片实测数字同性质。规则本体不依赖这些值；具体数据集名、脚本文件名、CLI 参数名仍须参数化。
 
-## robomme_policy_learning_MotionJEPA（`v2-vail-eval-0917`）
+## robomme_policy_learning_MotionJEPA（`v2-eval-0917`；2026-09-26 复查已改名，sha 不变）
 
 | 被排除内容 | 原因 |
 |---|---|
@@ -17,7 +17,7 @@
 | `external-assets-lock.md` 二、三、四节（六条资产表、六处接入、MotionJEPA 权重上传） | 具体资产与代码接入点 |
 | `env-b-aws-replication.md` 三、五、六、七、八、九、十一节与附录 | 具体判定行、sha、loss、GPU 分配、A100 实测数字 |
 
-## robomme_benchmark_MotionJEPA（`PolicyEvalThirdParty-v2-vail-eval-0917`）
+## robomme_benchmark_MotionJEPA（`PolicyEvalThirdParty-v2-eval-0917`；2026-09-26 复查已改名，sha 不变）
 
 | 被排除内容 | 原因 |
 |---|---|
@@ -66,5 +66,5 @@
 
 | 被排除内容 | 原因 |
 |---|---|
-| 全局 `CLAUDE.md` 的通用版（`global/CLAUDE.md`） | 用户 2026-09-18 决定不收；其内容已全部并入正本 |
+| 全局 `CLAUDE.md` 的通用版（`global/CLAUDE.md`） | 用户 2026-09-18 决定不收；其内容已全部并入正本（2026-09-26 起全局 `~/.claude/CLAUDE.md` 改为 `@` 导入本仓库正本，不再需要单独的通用版） |
 | `~/.claude/greatlakes.md` 副本 | 与 policy 版一致（旧一行），以本仓库正本替代 |
