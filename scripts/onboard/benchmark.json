@@ -4,11 +4,12 @@
     "end": "## 仓库目标",
     "known_region_sha256": [
       "ac03f5e7c7e4e67a5fa0cbd2f60bf57f3e9aebfae1bef1a3757000499fafc292",
-      "745b53fd05707e92b2a8b22016cf86511c733436c605b1de4b0fd4d58848cad0"
+      "745b53fd05707e92b2a8b22016cf86511c733436c605b1de4b0fd4d58848cad0",
+      "afd89e49430781b0e746415bbbf4315e56f0f28a481331caea14aafe39b4ce87"
     ],
     "head": "benchmark/AGENTS.md.head.md",
     "tail": "benchmark/AGENTS.md.tail.md",
-    "_note": "远端 268c41f（规则 1–12）与本地 12.153+（含规则 13）两个已知版本；账本区从「## 仓库目标」起字节不变"
+    "_note": "远端 268c41f（规则 1–12）与本地 12.153+（含规则 13）两个已知版本；账本区从「## 仓库目标」起字节不变；第三个值为 12.166（cf70829）含规则 14 的版本，规则 14 已逐字并入尾部夹具 P3"
   },
   "CLAUDE.md": {
     "start": "# Claude Code 专属约定",
