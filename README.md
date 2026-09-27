@@ -66,7 +66,7 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
   4. 回流 commit 即更新项目「规则来源」段的 sha（BEGIN 行的 `src=`），不再另写「引用 commit」。
 - 正本条目**只增不重编号**（第 25 条）；项目里长出的新通用条目（带日期标注与实测出处）回收进正本时，逐字搬运、只改专有名词，并在 [`docs/sources.md`](docs/sources.md) 补一行来源。
 - `~/.claude/greatlakes.md` 与 `~/.claude/skills/greatlakes-usage/` 是本仓库对应文件的副本，正本更新后重新同步：`cp greatlakes.md ~/.claude/greatlakes.md`、`cp -r skills/greatlakes-usage ~/.claude/skills/`。
-- 全局 `~/.claude/CLAUDE.md` 已改为两行 `@` 导入本仓库 `AGENTS.md` 与 `CLAUDE.md`（2026-09-26；2026-09-18 曾决定不提供全局 CLAUDE.md 的替换版，9/26 改为 `@` 导入）。旧版（2026-09-01）「greatlakes 集群」一节的过期提交器路径与权威源指向随之失效（见 [`docs/merge-decisions.md`](docs/merge-decisions.md) C、D 两项）。
+- 全局 `~/.claude/CLAUDE.md` **不再** `@` 导入本仓库（2026-09-27 撤掉；2026-09-26 曾改为两行 `@` 导入，2026-09-18 曾决定不提供全局替换版）。原因：正本与项目标记块是同一份内容，双份注入使每个会话启动即多占约 30k token（MotionJEPA 实测启动注入 139k 字 → 78k 字）。会话里生效的只有项目仓库内的标记块副本；未接入的目录先按第 25 条用 `sync_rules.py` 接入。全局文件只保留「本机专属」一节。**不得再把 `@` 导入加回全局文件。**旧版（2026-09-01）「greatlakes 集群」一节的过期提交器路径与权威源指向随之失效（见 [`docs/merge-decisions.md`](docs/merge-decisions.md) C、D 两项）。
 - Codex 侧：`~/.codex/AGENTS.md` 指向本仓库 `AGENTS.md`；`~/.codex/config.toml` 设 `project_doc_max_bytes = 131072`——Codex 默认只读 `AGENTS.md` 前 32 KiB，正本与各项目副本都已超过，不调大会静默丢掉后半截规则（见 [`docs/merge-decisions.md`](docs/merge-decisions.md) P）。
 
 ## MotionJEPA NFS 检出接续步骤
