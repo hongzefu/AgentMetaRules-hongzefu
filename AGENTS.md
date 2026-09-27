@@ -290,23 +290,9 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 
     来源：benchmark/AGENTS.md 规则 11；benchmark 日志 2026-09-17（一次性授权措辞）。
 
-22. **证据纪律与执行账本。**
+22. **证据纪律与过程记录。**
     - 任何「完成」「一致」「可用」的判断都必须附带可复现命令、退出状态、输出路径和审查摘要；没有证据时只能写「未验证」或「进行中」。验收判定统一写成具名判定行 `NAME=PASS k=v`（如 `ASSETS=PASS assets=6 mismatches=0`），最终验收列出具名判定项，不用一条笼统 PASS 代替；判据 FAIL 时只记证据链与候选修法，不自行改判据、不自行放宽，裁决权交用户。评测类任务的成功与否由独立的成功字段（如 `task_success`）单独报告；正常执行但未完成任务如实记为 0/1，**不为挑出成功回合而重试**——重试只允许用于基础设施故障，且须记录原因与次数。
-    - 长周期任务型仓库可把 `AGENTS.md`（或指定文件）作为**持续状态账本**：每次开始工作前先阅读；每个阶段开始、取得关键进展、遇到阻塞以及完成时都必须更新「当前进度」与「追加式执行日志」，不能只在聊天消息、终端输出或其他报告里记录进展；更新进度表的同时保留已有日志，不得覆盖或删除旧记录。用户限定「只改某一份文件」与账本规则冲突时按用户指令执行，事后补记。日志条目模板（复制追加，不能删除已有日志）：
-
-      ```text
-      ### YYYY-MM-DD HH:MM TZ — <阶段>：<里程碑>
-
-      - 状态：进行中 / 受阻 / 完成。
-      - 目标：
-      - 执行命令：
-      - 输入与来源：
-      - 输出路径：
-      - 结果与证据：
-      - 差异或阻塞：
-      - 修改文件：
-      - 下一步：
-      ```
+    - **不维护追加式执行日志**（2026-09-27 起）：`AGENTS.md` / `CLAUDE.md` 只放规则，不作持续状态账本，不写「当前进度」表、不追加执行日志——每个会话都会整份加载这些文件，账本会无限膨胀（benchmark 仓库实测账本 430 KB、约 20 万 token 每次启动注入）。过程与证据改记在两处：①第 11 条的 commit body（用户原话、计划、实施、意外、实测、下一步）；②需要长期留档的运行按第 12、13、17 条写入 `<DOC_ROOT>`。项目已有的历史账本整段移入 `docs/ledger/`（逐字节归档、只读、不再追加），规则文件里只留一行指针。
     - 留档文档采「高层导读」写法：判定行一律内联原文，records 快照在各留档目录，导读不复述其内容；用户指令原话与执行前用 AskUserQuestion 定下的口径逐条编号写进留档；来源之间口径冲突时保留并注明冲突，不替来源改写。
 
     来源：benchmark/AGENTS.md 全局执行规则、「后续日志模板」；env-b-aws-replication.md 一节、7.6 节、十一节；evalgl/README.md「验收」。
@@ -391,7 +377,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 | `<WORK_ROOT>` | `/data/hongzefu/robomme_policy_learning_MotionJEPA` / `/scratch/hongze/robomme_policy_learning_MotionJEPA` | `/data/hongzefu/robomme_benchmark_MotionJEPANewTask`（⚠ `newtaskRelease-v5` 分支检出，2026-09-26 口径；`dataset-gen-NewSeed` 检出在 `/data/hongzefu/robomme_benchmark_MotionJEPA`） | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme-eval-GL`（本机与集群共用；⚠ 2026-09-18 已清空归档，远端 `v2-vail-eval-0917` @ `d4aeff7b` 保留，清理记录在同级 `robomme-eval-GL-cleanup-20260918T032848Z/`） | `/scratch/hongze/MotionJEPA`（AWS）；⚠ vail 侧检出 `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/MotionJEPA` |
 | `<ARCHIVE_ROOT>` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme_policy_learning_MotionJEPA`（环境 A；评估任务经用户授权例外可写） / 无 | 无 | 无 | 无 |
 | `<STORE_ROOT>` | `v1-store/` | `artifacts/`（另有 `data/robomme_data_h5/` 官方参考数据） | `eval-store/` | `runs/`、`dataset-4env-*` |
-| `<DOC_ROOT>` | `docs/training-doc/`、`docs/dataset-build-doc/` | `AGENTS.md` 账本（当前进度 + 追加式执行日志） | `docs/eval-doc/` | `docs/training-doc/`、`docs/dataset-build-doc/` |
+| `<DOC_ROOT>` | `docs/training-doc/`、`docs/dataset-build-doc/` | `docs/`（历史账本已于 2026-09-27 归档到 `docs/ledger/`，不再追加） | `docs/eval-doc/` | `docs/training-doc/`、`docs/dataset-build-doc/` |
 | `<FAST_LOCAL_CACHE_ROOT>` | `v1-store/cache/` / `/scratch/hongze/.cache` | 默认 | `$HOME/.cache/uv`（`XDG_CACHE_HOME` 等指 `eval-store/cache/`） | `/scratch/hongze/` 下 |
 | `<PY_INTERPRETER>` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/uv-python/cpython-3.11.14-linux-x86_64-gnu/bin/python3.11`（环境 A） | — | 同左 | 同左（历史，AWS 分支不用） |
 | `<GL_REPO>` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme_policy_learning_MotionJEPA` | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme_benchmark-newtask-gl`（⚠ 2026-09-26 补） | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/robomme-eval-GL`（⚠ 已清空） | `/nfs/turbo/coe-chaijy-unreplicated/hongzefu/MotionJEPA` |
