@@ -225,12 +225,13 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 
 15. **原始数据与外部资产：来源可核、身份钉死、大下载先问。**
     - **数据路径按实际环境核实**：不猜测已有副本、数据规模或同步状态；输入需先核实来源，输出需核实实际目录。原始数据的来源与暂存按环境分叉，在项目 `AGENTS.md` 声明：为集群作业暂存的副本属**临时暂存**，必须与原件逐文件 sha256 核对同源，并在全流程验收通过后删除；原件永久保留区不动。本机没有原件时从公开/私有数据源获取，落点在工作盘下，逐文件记 sha256 入 `<STORE_ROOT>` 的 input manifest。**获取前先与用户确认落点与口径，不得自行开始几百 GB 的下载。** 留档里同时记 sha256 前缀 + 字节数，异地即可用「前缀 + 字节数双命中」判同源并传递结论。
+    - **判定「有没有远端归档」必须同时查 HF 的 repo 与 Storage Buckets**（2026-09-26 MotionJEPA 清理盘点实测踩中）：model / dataset repo（`/api/models|datasets?author=…`、`hf download`）与 bucket（`hf buckets list <owner>`、`hf buckets list <owner>/<bucket> -R`）是两套互不可见的存储；只查 repo API 会把已整库归档在 bucket 里的 ckpt 与数据集（当次漏看约 620 GB）误报成「不在 HF、删了不可恢复」，据此的保留 / 删除清单整份失真。凡给出「远端有 / 没有备份」「删了能否恢复」的结论，必须附两类查询的原始输出；本地资产旁若有 `bucket-tree.json`、`download-list.txt` 一类清单，即是 bucket 归档的线索，先顺着它核实。比对同源用 bucket 内 `SHA256SUMS*` 与本地 sha256，不用 `xetHash` 代替 sha256。
     - **外部大二进制依赖（权重、tokenizer、VAE 等）的身份保证三反模式**，一个都不能犯：①只查「文件在不在」（`[[ -f ]]` 后直接加载）；②真锚点只写在文档或命令行里、没有任何代码读它；③自证循环——现场哈希那份即将被使用的文件再把结果当「期望值」，只能证明多卡用同一份字节，挡不住「这份文件本身就是错的」。
     - **资产锁四条设计点**：进 git 的 manifest 每条记**落点 + 指纹 + 来源**；表自己防篡改（顶层 sha256 是剔掉该键后 canonical JSON 的哈希，改任一值不改它即 fail-loud）；两个档位——`cheap`（字节数 + 首尾各 1 MiB 的 blake2b，放进每次起跑的前置）与 `full`（逐文件全量 sha256），并显式声明 cheap 挡不住「保持长度改中间字节」；**`revision` 必须是 40 位 commit sha，禁 `main` 或移动分支**（第三方依赖同理：锁定到 40 位 commit，禁止退回 PyPI 官方包或移动分支）。逃生阀默认关、跳过时打醒目警告，真正要堵的洞不给逃生阀。末行统一判定行 `ASSETS=PASS|FAIL`。
     - **边界要写明**：资产锁保证输入字节同一，**不保证输出数值逐位同一**（跨架构实测有差），禁止把 `ASSETS=PASS` 读成「数值可逐位对拍」；服务端统计（如 `usedStorage`）异步滞后且对等长篡改失明，不采信。
     - **异地从零复刻五步**：clone 钉分支 → `UV_LINK_MODE=copy uv sync`（主 venv + 各子 venv，子 venv 用 `UV_PROJECT_ENVIRONMENT`）→ 私有凭据只走环境变量（token 只在命令 env 里出现、不落任何文件、不进留档；私有 git 依赖走 ssh 不建 `~/.ssh/config`）→ `plan`（打印总量与缺失数）→ `fetch`（建议放 tmux）→ `verify --level full`。已知阻塞两条：路径白名单式硬编码是异地复刻的头号阻塞（加常量前缀而不是改成与路径无关的判据，由测试盯两份同值）；钉 commit sha 的 HF `snapshot_download` **不写 `refs/main`**，离线加载会失败，落盘后须补写 `refs/main = revision`（已存在且不同则响亮失败不覆盖）。
 
-    来源：policy/AGENTS.md 规则 15；external-assets-lock.md 一、二、五、六节；evalgl/AGENTS.md 规则 6(c)；env-b-aws-replication.md 四节。
+    来源：policy/AGENTS.md 规则 15；external-assets-lock.md 一、二、五、六节；evalgl/AGENTS.md 规则 6(c)；env-b-aws-replication.md 四节；2026-09-26 MotionJEPA 盘点漏查 bucket（用户原话「HuggingFace你要查bucket bucket查了吗？」「把这个bucket教训写入项目md和https://github.com/hongzefu/AgentMetaRules-hongzefu」）。
 
 16. **GPU 利用率的测量与判读必须防止「中位数假象」**：结论必须以稳态窗口内的 **util 均值、0% 采样占比、慢步/非慢步分层均值** 为准，禁止以中位数作为标题结论；采样间隔必须显著小于步时——步时数秒量级时用 `nvidia-smi -lms 500` 流式密集采样（500ms 即 NVML 有效密度上限，`utilization.gpu` 本身是其约 1/6~1 秒内部周期的均值，不把重复读数当作新增证据），需要与旧数据对照时可并行保留 15 秒 legacy 采样通道。性能优化的首要判据是「GPU 是否吃满」，不得凭单一统计量宣称无瓶颈（2026-08-24 v1-e2e-b64 中位 100% 掩盖了均值仅 69-70% 的实测教训）；但也**不能以「GPU 吃满」替代吞吐、正确性和资源成本**。性能与吞吐结论必须带稳态与环境证据：GPU、底层存储介质（本机 NVMe / NFS / 本地 RAID）、batch size、worker 数、warmup 与预热区间、稳态窗口、采样间隔与吞吐；不同介质或环境的数字不得混比，跨介质 / 跨环境对照必须在同一介质、当前环境上重测。
 
