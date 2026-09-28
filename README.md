@@ -25,6 +25,7 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 | [`templates/run_in_hold.sh`](templates/run_in_hold.sh) | 经 `srun --jobid --overlap --exact` 塞进占位 job 的运行器骨架：计算节点判定 fail-fast + 日志三件套 + `trap cleanup EXIT` + `EXIT_CODE=` |
 | [`templates/run_long_task.sh`](templates/run_long_task.sh) | detached tmux + 日志三件套 + `EXIT_CODE=` |
 | [`templates/monitor_filter.sh`](templates/monitor_filter.sh) | Monitor 行缓冲过滤管道 |
+| [`templates/CLAUDE.global.macbook.md`](templates/CLAUDE.global.macbook.md) | MacBook 单机全局 `~/.claude/CLAUDE.md` 版本：中文沟通 + 从第 3、7 条与 Monitor 节摘出的 uv / tmux / Monitor 本机规则（自包含、不 `@` 导入，符合下文 2026-09-27 约定）；本机需 `brew install tmux` |
 | [`docs/sources.md`](docs/sources.md) | 溯源：每条规则来自哪个仓库的哪一节；日期沿革表 |
 | [`docs/merge-decisions.md`](docs/merge-decisions.md) | 四仓库版本冲突与机制取舍（A–R）与口径统一清单 |
 | [`docs/excluded.md`](docs/excluded.md) | 明确不收的项目专属内容（按仓库列） |
