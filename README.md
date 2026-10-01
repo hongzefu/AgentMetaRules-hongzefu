@@ -9,7 +9,7 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 | 路径 | 内容 |
 |---|---|
 | [`AGENTS.md`](AGENTS.md) | **正本 1**：通用规则第 0–26 条，末尾附录 A 占位符表、附录 B 四仓库实际取值、附录 C 规则来源。通用块 = 「强制规则（最高优先级）」到附录 A 表末，标记名 `common-agents`（第 0 条与附录 B/C 在块外） |
-| [`CLAUDE.md`](CLAUDE.md) | **正本 2**：Claude Code 独有机制（`@AGENTS.md` 导入；Agent 工具子代理一批即弃、默认只读 + Workflow 逐次审批、Monitor、Skill、plan mode）。通用块 = `@AGENTS.md` 行之后到文末，标记名 `common-claude` |
+| [`CLAUDE.md`](CLAUDE.md) | **正本 2**：Claude Code 独有机制（`@AGENTS.md` 导入；Agent 工具子代理一批即弃、默认只读 + 计划执行模式（写入型 worktree 子代理）+ Workflow 逐次审批、Monitor、Skill、plan mode）。通用块 = `@AGENTS.md` 行之后到文末，标记名 `common-claude` |
 | [`greatlakes.md`](greatlakes.md) | **正本 3**：GreatLakes Slurm 提交规约通用部分（认证 / 占位 job 与资源约束 / 路径 / venv / ControlMaster 流程 / Okta / 占位 job 与运行器骨架 / job array / PENDING 读法 / 放行制度 / 算力使用规则）。通用块 = H1 标题之后到文末，标记名 `common-greatlakes` |
 | [`sync-targets.json`](sync-targets.json) | 同步目标清单：正本（canon）与三个项目仓库 benchmark（`robomme_benchmark_MotionJEPANewTask` @ `newtaskRelease-v5`）、policy（`robomme_policy_learning_MotionJEPA` @ `v2-motionmem`）、mjepa（NFS 上的 `MotionJEPA` @ `v6.1.2-awsNoSlurm`）的路径与分支 |
 | [`scripts/sync_rules.py`](scripts/sync_rules.py) | 标记块同步器：`check`（只读比对，末行 `SYNC_SUMMARY=PASS\|FAIL`）、`apply`（只替换标记块并写入 `src=` / `blob=`）、`transform`（对任意版本的文件内容做同一变换）、`blocks`（列出正本通用块）、`lint`（正本标记自检） |

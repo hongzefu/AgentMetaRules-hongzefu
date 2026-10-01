@@ -15,7 +15,7 @@
 
 ## Workflow 与 Agent 模型（强制）
 
-本节分两块：Agent 工具直接派发的子代理，与 Workflow 脚本编排；两块共用的模型规则写在第一块末尾。Codex 的多代理规则（`AGENTS.md` 第 26 条：持久化、互相通讯、写入型）与本节是两套范式，互不套用，逐项对照见 [`docs/subagent-claude-vs-codex.md`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/docs/subagent-claude-vs-codex.md)。
+本节分三块：Agent 工具直接派发的子代理、计划执行模式（写入型 worktree 子代理）、Workflow 脚本编排；三块共用的模型规则写在第一块末尾。Codex 的多代理规则（`AGENTS.md` 第 26 条：持久化、互相通讯、写入型）与本节是两套范式，互不套用，逐项对照见 [`docs/subagent-claude-vs-codex.md`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/docs/subagent-claude-vs-codex.md)。
 
 ### Agent 工具子代理：一个时间点放一批、用完即弃、默认只读（2026-09-26 重写）
 
@@ -23,17 +23,29 @@
 - **数量不设上限，只受宿主限制**：规则层不设数量上限。宿主默认同时运行上限 20 个（`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`，ultracode 会话不受此限；会话内累计派发数不限），满额时报 `Concurrent subagent limit reached`，不重试，等已派出的返回再发下一批；嵌套默认最多 3 层。「多开近乎免费」只指**等待时间**——总耗时由最慢的一个决定；**用量不免费**：子代理的请求计入与主会话相同的用量额度，多开成倍消耗。因此不设上限只在已获准的任务范围内成立：不以此为由扩大范围或重复派发（`AGENTS.md` 第 2 条）。
 - **反驳同一条不得并行多个 agent（2026-09-03 新增）**：对抗验证 / 反驳类 workflow 里，**同一条 finding（同一条质疑、同一个待验证结论）只能派一个 agent 去反驳**，禁止对同一条并行派多个 agent 交叉反驳，也禁止同一条反复多轮反驳。不同 finding 之间照旧并行、不设数量上限（上条）。理由：反驳同一条的多个 agent 输入完全相同、彼此看不到对方产出，结论高度重复，只增成本不增信息；更糟的是会在综合阶段制造「多数票」假象——同一条被三个 agent 各自确认，读起来像三份独立证据，实际只是同一份推理被复制了三遍。
 - **串行依赖不并行**：后一个 agent 的输入依赖前一个的结果时保持串行，不为凑并行强行拆分——串行依赖本质上需要成倍等待时间，并行化不了。
-- **一次性、用完即弃**：子代理交回一份结果即视为结束，下一个决策点需要时重新派一批；不维持长期存活的子代理，不在子代理之间建立通讯、分工或互相等待。`SendMessage` 只用于续接同一个被中断或只差一小步的子代理（Explore / Plan 是一次性的、不返回 agent ID，无法续接），不用来搭建 Codex 式的持久代理网络。
-- **绝大多数只读，改代码由主会话自己做**：子代理默认只做检索、调研、核对、审查、出方案。优先用只读内置代理 Explore / Plan（宿主对其禁用 Write / Edit）；其他子代理必须在提示里写明「只读：不改任何文件、不跑有副作用的命令」——后台子代理的内置工具集仍保留 `Edit` / `Write` / `NotebookEdit` / `Bash`，只读靠提示约束，不是宿主保证。需要改代码时由主会话依据子代理的结论亲自改。
-- **确需改文件的子代理，边界必须清晰**（仅限大批量、可按文件切开的机械改动）：
+- **一次性、用完即弃**：子代理交回一份结果即视为结束，下一个决策点需要时重新派一批；不维持长期存活的子代理，不在子代理之间建立通讯、分工或互相等待。`SendMessage` 只用于续接同一个被中断、只差一小步、或在计划执行模式下合并前审查 FAIL 后需按 findings 续改的子代理（实测续接会回到原 worktree）（Explore / Plan 是一次性的、不返回 agent ID，无法续接），不用来搭建 Codex 式的持久代理网络。
+- **计划执行之外，绝大多数只读，改代码由主会话自己做**：子代理默认只做检索、调研、核对、审查、出方案。优先用只读内置代理 Explore / Plan（宿主对其禁用 Write / Edit）；其他子代理必须在提示里写明「只读：不改任何文件、不跑有副作用的命令」——后台子代理的内置工具集仍保留 `Edit` / `Write` / `NotebookEdit` / `Bash`，只读靠提示约束，不是宿主保证。需要改代码时由主会话依据子代理的结论亲自改。**例外**：执行已批准的 markdown 计划时，改代码默认按下一块「计划执行模式」交给 worktree 隔离的写入型子代理。
+- **确需改文件的子代理，边界必须清晰**（计划外的临时写入，仅限大批量、可按文件切开的机械改动；计划内的写入按「计划执行模式」）：
   1. 派发前给每个子代理列出可写文件集合与禁止触碰的路径，各集合互不重叠、同一文件只有一个写者。子代理默认与主会话共用同一工作目录，彼此的改动立即可见；不得改集合外的文件，不回滚他人改动。
-  2. 需要真正隔离时用 `isolation: "worktree"`。worktree 默认从**默认分支**（通常 `main`）分出而不是当前 HEAD——子代理要基于当前分支的在途工作时须先在 settings 设 `worktree.baseRef: "head"`，否则看不到这些改动；有改动的 worktree 留在磁盘上、不会自动合回，由主会话核对后合并。
-  3. 子代理不 commit、不 push；主会话整合前逐个核对各子代理交回的改动文件清单与 `git status --short`，发现越界、重叠或他人在途改动即停（暂存与提交按 `AGENTS.md` 第 11 条）。
+  2. 计划外写入需要真正隔离时也可用 `isolation: "worktree"`。worktree 默认从**默认分支**（通常 `main`）分出而不是当前 HEAD——子代理要基于当前分支的在途工作时须先在 settings 设 `worktree.baseRef: "head"`，否则看不到这些改动；有改动的 worktree 留在磁盘上、不会自动合回，由主会话核对后合并。
+  3. 共用工作目录的子代理不 commit、不 push；worktree 隔离的子代理按「计划执行模式」只在自己的分支 commit、同样不 push。主会话整合前逐个核对各子代理交回的改动文件清单与主检出 `git status --short`，发现越界、重叠或他人在途改动即停（暂存与提交按 `AGENTS.md` 第 11 条）。
 - **模型规则（2026-08-06 更新，按启动方式分两条）**：
   - **用 Agent 工具 launch 单个 subagent：强制 `model: "opus"`。**
   - **Workflow 脚本里调 `agent()`：默认且仅允许 `model: "sonnet"`。唯一例外**：workflow 收尾的总结/综合 agent、或负责制定计划（plan）的 agent，可用 `model: "opus"`，但**单次 workflow 内（按 workflow 计，不是按完整任务计——一个任务跑多个 workflow 时每个 workflow 各自计数）**累计使用 opus 不得超过 3 次。
   - 两条通用：禁止 haiku、fable 及一切白名单外模型；当前宿主或用户指令另有规定时从其规定。
 - **`model` 参数不得省略**：省略时会静默继承主会话模型（主会话常是 fable），同样算违规——每次派 agent 都必须显式写 `model`。
+
+### 计划执行模式：worktree 隔离的写入型子代理 + `sub/` 前缀 commit + `--no-ff` 合并 + 两次审查（2026-10-01 新增，当日在 benchmark 仓库实测定稿）
+
+- **触发与边界**：用户已批准的 markdown 计划（经 `ExitPlanMode` 批准，或用户明示按某份计划执行）进入实施时，**改代码默认交给写入型子代理，越积极越好**；前提是任务边界清晰可分——计划第二部分「子代理分配表」（`AGENTS.md` 第 2 条）里各子任务的可写文件集合互不重叠、共享文件只有一个 owner。切不开的部分由主会话自己改并在表里写「主会话自做」及理由。非计划执行的改动沿用上一块默认。分配表经批准即为写入型子代理的派发授权，表外不派；只读子代理照旧不需批准。第 21 条受保护目录的文件不进可写集合；`uv.lock`、`pyproject.toml`、子模块 gitlink 一律归主会话。本模式只走 Agent 工具，不走 Workflow（`agent()` 只许 sonnet）。用户原话（2026-10-01）：「尽可能积极地调用sub-agent来完成代码的修改你要做到任务清晰可分并且每次Merge都必须要有很清晰的再次审查然后不允许Sabagent直接在主仓库上改。」
+- **派发前核对**（任一不满足不得派写入型子代理）：① `~/.claude/settings.json` 的 `worktree.baseRef` 为 `"head"`——不设则 worktree 从 `origin/HEAD` 分出、看不到当前分支（实测基点差 10 个大版本），设后对当前会话即时生效；② 主检出 `git status --short --ignore-submodules=dirty` 为空——有他人在途改动时不派、不清理，仿第 19 条三选一交用户；主会话自己的前置改动先 commit；记 `BASE=$(git rev-parse HEAD)` 进分配表；③ `git check-ignore -q .claude/worktrees/probe` 成功；④ `git worktree list` 存档，此前已存在的 worktree 一律不动。
+- **派发**：每个写入型子代理 `isolation: "worktree"` + `model: "opus"`；同一决策点一批发出，串行依赖不并行。宿主实测只拦三类：`Edit`/`Write`/`NotebookEdit` 写主检出路径、`git -C`/`GIT_DIR` 重定向到主检出、一条 Bash 里多条 git 或循环（命令形状检查）；**不拦 Bash 用绝对路径写主检出**（实测 `echo >> <主检出>/文件` 落地成功），所以提示里必须禁止写主检出任何路径，合并前主会话再查一次主检出。提示固定要素：子任务编号与目标、可写文件集合、禁触路径、验收命令与判定行（含环境取法）、「代码库里不只你一个在改：不碰集合外文件、不回滚他人改动、不改验收命令与判据文件」、commit 规约、交回格式、「每条 git 命令单独一次 Bash」、「不得再派子代理、不得起超过 5 分钟的任务」。worktree 落 `.claude/worktrees/agent-<id>/`、分支 `worktree-agent-<id>`，完成通知自带 `worktreePath` / `worktreeBranch`。
+- **子代理在 worktree 内的纪律**：只在自己的 worktree 工作。**每个 commit subject 固定前缀 `sub/<子任务编号>: `**，后接中文描述（如 `sub/S1-A: PickXtimes 常量改 6／7／8`），body 简式三项：目标、改动文件、验证命令与判定行；可多次 commit，**全部原样保留**（用户 2026-10-01：「子代理的comm都要加上前缀。你来规定一个固定的前缀。还是尽可能保留子代理里的每一个commit信息。」）。禁止 push、禁止 checkout／merge／rebase 到工作分支、禁止 `--amend`／`reset --hard` 改掉已交回审查的 commit、禁止写入凭据／日志／大文件。交回：worktree 路径、分支名、`BASE`、HEAD sha、`git diff --name-only BASE..HEAD`、`git log --oneline BASE..HEAD`、验收原始输出与判定行、未解决事项、「未派生子代理、未 push」声明。
+- **worktree 环境陷阱**：worktree 是干净检出——没有 `.venv`、没有 `<STORE_ROOT>`、子模块目录为空；editable 安装的 `.pth` 指向主检出 `src`，借主检出 venv 跑测试会 import 到主检出代码。分配表写明环境取法，子代理先打印 `<包>.__file__` 核实指向 worktree，各项目 `CLAUDE.md` 写固定取法（benchmark 实测：`UV_PROJECT_ENVIRONMENT=<主 .venv> PYTHONPATH=<worktree>/src uv run --no-sync …`，`uv` 不会在 worktree 建 venv）。worktree 内验收只跑 ≤5 分钟的 CPU 轻量测试；GPU、性能、需要 `<STORE_ROOT>` 产物的验收留给合并后主会话串行跑（多个 worktree 子代理同时跑 GPU 会互抢，分配表标明资源占用）；不在 worktree 里建 `artifacts` symlink。
+- **合并前审查（第一次）**：主会话 ① 主检出 `git status --short --ignore-submodules=dirty` 无非预期改动；② `git diff --name-only <BASE>..<TIP>` 逐项 ⊆ 可写集合，越界即 `SCOPE=FAIL`；③ 在该 worktree 内复跑验收命令（审查子代理是纯审计不跑验收，第 22 条）；④ 派**一个**只读审查子代理（`model: "opus"`，不加 `isolation`），钉死 `REVIEW_BASE` / `REVIEW_TIP` 两个完整 sha，只许 `git diff <sha>..<sha>`、`git log <sha>..<sha>`、`git show <sha>:<path>`：计划条目是否完成、有无偷改集合外、接口契约是否守住、前缀与 body 是否合规、有无凭据／日志／大文件，输出 `PRE_MERGE_REVIEW=PASS|FAIL base=<sha> tip=<sha> files=<n> commits=<n> findings=<n>`。同一分支一轮只派一个审查者（「反驳同一条不得并行」）；FAIL → 不合并，findings 用 `SendMessage` 交回原子代理续改，第二轮只复核上轮 findings 与 `<旧 TIP>..<新 TIP>` 增量；两轮仍 FAIL 交用户。写入方与审查方不得是同一代理。
+- **合并（主检出唯一写者是主会话）**：`git merge --no-ff <TIP sha> -F <scratchpad 消息文件>`（合 sha 不合分支名，消除「审一版、合另一版」；不用 git 默认英文「Merge branch」）；subject 按仓库体例，body 按第 11 条详写（摘录子代理报告、`PRE_MERGE_REVIEW` 行、改动文件清单）。按分配表「合并顺序」逐个合，合一个、审一个、push 一个。**文本冲突**：集合不重叠本不该冲突，先判越界 `SCOPE=FAIL` 交回；确需整合时派整合子代理（`isolation: "worktree"`，基于当前工作分支 HEAD）`git merge <冲突 TIP>`、解冲突（只许动分配表「共享文件归属」列出的文件）、跑验收、commit（前缀 `sub/MERGE-<n>: `），主会话对整合分支重走第一次审查后 `--no-ff` 合入。第 12 条「打包期间冻结 HEAD」期间禁止合并。
+- **合并后审查（第二次）**：每次合并后主会话 ① 跑仓库核心短测（第 4 条口径）；② `git diff --name-only <合并前 HEAD>..HEAD` 与分配表核对；③ 项目闸门（第 21 条受保护目录零 diff 等）；输出 `POST_MERGE_REVIEW=PASS|FAIL merge=<sha> tests=<结果> files=<n>`。PASS → 按第 11 条立即 `git push`（`sub/` 提交随之进远端，是 `--no-ff` 的既定代价）→ 下一个合并。FAIL → 停止后续合并、不 push、证据交用户裁决；不 `reset`／`rebase` 改历史，合并提交以 `ahead` 留本地属第 11 条显式例外。
+- **清理**：`POST_MERGE_REVIEW=PASS` 且已 push 后，`git worktree list`（删前）→ 锁住先 `git worktree unlock` → `git worktree remove <路径>`（有未跟踪文件才加 `--force`，先核对里面没有实体产物目录）→ `git branch -d <分支>`（只许 `-d`，未合并分支拒删即保留交用户）→ `git worktree list`（删后，差集只少目标）。只删分配表登记的 worktree；无改动的 worktree 宿主已自动清理。
 
 ### Workflow
 

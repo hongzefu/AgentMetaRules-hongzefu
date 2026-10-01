@@ -1,6 +1,6 @@
 # 冲突与取舍
 
-四个仓库同一条规则存在不同版本时，按「更新的日期 > 更完整的表述 > 与实配一致」三条取舍；每处取舍并列两边原文。源文件缩写同 [`sources.md`](sources.md)。A–O 是建库时（2026-09-18）的四仓库版本冲突；P–R 是 2026-09-26 的机制取舍（正本原写法 vs 宿主实际加载行为 / 用户新决定），体例相同。
+四个仓库同一条规则存在不同版本时，按「更新的日期 > 更完整的表述 > 与实配一致」三条取舍；每处取舍并列两边原文。源文件缩写同 [`sources.md`](sources.md)。A–O 是建库时（2026-09-18）的四仓库版本冲突；P–R（S 是 2026-10-01 的计划执行模式取舍） 是 2026-09-26 的机制取舍（正本原写法 vs 宿主实际加载行为 / 用户新决定），体例相同。
 
 ## A. commit 后是否必须 push
 
@@ -143,7 +143,7 @@
   - 用户 2026-09-26 原话：「codex强调修改文件要保持subagent之间的任务的的清晰 尽可能多并发 完全是multi agent的处理流程」；「而codex一般是持久化的运行多agent 几个agent互相通讯 不会因为单个任务结束就关闭这个agent」。
   - 官方与源码事实（`rust-v0.157.0`）：子代理是持久线程，一项任务结束后不关闭，可用 `followup_task` 追加任务、`send_message` 互相通讯；本机 SSH App 实测暴露的是 V2 工具集（`spawn_agent` / `followup_task` / `send_message` / `wait_agent` / `interrupt_agent` / `list_agents`），没有 V1 的 `close_agent`，空闲代理由宿主按 `residency.rs` 自动卸载；子代理与主代理共享同一工作目录；新任务 16 路并发、第 17 路被拒（[`codex-app-ssh-multiagent.md`](codex-app-ssh-multiagent.md)）。
 
-**取舍**：不统一成一套。`CLAUDE.md`「Workflow 与 Agent 模型」节拆成两块：「Agent 工具子代理：一个时间点放一批、用完即弃、默认只读」（要改文件时写入边界清晰）与「Workflow」（逐次审批）；`AGENTS.md` 第 26 条写 Codex「完全按多代理流程工作——持久化子代理、尽可能多并发、写入边界清晰」。两边的共同底线只写一次、两边引用：第 2 条（并行不扩大授权）、第 11 条（不覆盖、不提交他人在途改动）、第 22 条（证据与判定行）；第 25 条「跨宿主中立」兜底——Claude 的模型名与 Workflow 约束不施加给 Codex，第 26 条也不约束 Claude。
+**取舍**：不统一成一套。`CLAUDE.md`「Workflow 与 Agent 模型」节拆成两块：「Agent 工具子代理：一个时间点放一批、用完即弃、默认只读」（要改文件时写入边界清晰）与「Workflow」（逐次审批）；`AGENTS.md` 第 26 条写 Codex「完全按多代理流程工作——持久化子代理、尽可能多并发、写入边界清晰」。两边的共同底线只写一次、两边引用：第 2 条（并行不扩大授权）、第 11 条（不覆盖、不提交他人在途改动）、第 22 条（证据与判定行）；第 25 条「跨宿主中立」兜底——Claude 的模型名与 Workflow 约束不施加给 Codex，第 26 条也不约束 Claude。2026-10-01 起 Claude 侧多出第三块「计划执行模式」（执行已批准计划时改为写入型 worktree 子代理），取舍见 S。
 
 ## R. greatlakes：日常包络 vs 占位 job
 
@@ -151,6 +151,15 @@
 - 用户 2026-09-26 原话：「greatlakes都采用占用job的形式 而不是现在这样 在修改代码之前 启动工作的时候 尽可能早的占卡 如果是maniskill多worker cpu生成的 我记得这几个仓库有实测验证 其他情况下压低cpu mem保证快速排队 每次job都直接48小时 工作完成后kill 这样可以让排队和修改代码并行」。
 
 **取舍**：一律 48 h 占位 job（`--gres=gpu:1 --time=48:00:00 --wrap='sleep infinity'`），一切工作负载经 `srun --jobid=<hold> --overlap --exact --gpu_cmode=shared` 塞入；默认 `--cpus-per-task=1 --mem=24G`，ManiSkill 多 worker 每 worker 1 CPU + 12 G；开工先占卡（任务确定上 GL 时第一步、改代码之前就 sbatch，JobID 记入 `<日志目录>/hold-jobs-<任务名>.txt`），让排队与改代码并行；跑完按清单逐个 `scancel`。放行制度改为超出「1 GPU × 48 h、默认规格、一次 4 个」才逐次放行。模板随之把 `templates/job.sbatch` 换成 [`templates/hold_job.sbatch`](../templates/hold_job.sbatch)（占位 job）+ [`templates/run_in_hold.sh`](../templates/run_in_hold.sh)（经 srun 塞入的运行器，保留原计算节点判定 fail-fast）。
+
+## S. 计划执行模式：子代理提交怎么进历史、规则落点
+
+- 用户 2026-10-01 原话（语音转写）：「一个方案给本机器以及agentmetarules这个repo都增加一个约束如果是如果是执行一个场任务就是用户已经定好的一个markdowplan需要执行的话对于CladeAgent来说要尽可能的调用SubAgent来执行一个任务部分并且这个subagent可以自己创建一个然后在上面修改修改完了之后有主agent想办法来mergemerge的过程也可以使用subagent来进行反正尽可能的在可清晰划分任务边界的情况下来完成代码的修改和审查。尽可能积极地调用sub-agent来完成代码的修改你要做到任务清晰可分并且每次Merge都必须要有很清晰的再次审查然后不允许Sabagent直接在主仓库上改。」
+- 补充原话：「最好是查看这个任务这个任务本身最好就已经好了撒贝镇的分配。在第二部分就是任务的markdown的第二部分最好已经设计好怎么去分配这个SubAgent。」「在第一部份中减数怎么去分配。怎么去合并。简单的叙述让用户稍微能看懂」「子代理的comm都要加上前缀。你来规定一个固定的前缀。还是尽可能保留子代理里的每一个commit信息。」「你可以先尝试一下使用SubAgent。尽可能实测实测完了再给我写」「v8 plan先别动」
+- 子代理提交进历史的三个候选：① squash 合并——子代理在 worktree 分支随手 commit，主会话 `git merge --squash` 后自己写第 11 条体例 body，历史干净但子代理逐步 commit 不进历史；② `--no-ff` 合并——子代理 commit 原样进历史外加合并提交，可追溯逐步改动但历史里混进不合体例的 commit；③ 子代理不 commit、主会话 `git -C <wt> diff | git apply` 搬补丁——冲突时 git 帮不上忙、无 sha 锚点可审。
+- 规则落点的三个候选：A 只改正本回流三靶 + 本机 `settings.json` 设 `baseRef`；B 在 A 之上全局 `~/.claude/CLAUDE.md` 加一行指针不复制正文；C 把规则全文也抄进全局文件（与 9-27 撤掉 `@` 导入的理由冲突，双份注入）。
+
+**取舍**：用户经 AskUserQuestion 选 ②（「B：保留子代理 commit，--no-ff 合并」）与 B（「A 再加全局一行提示」）。为弥补 ② 的体例代价，`sub/<子任务编号>: ` 固定前缀 + 简式三项 body + 不占项目版本号写进第 11 条例外，六项 body 由合并提交承担；合并锚定 TIP sha 不合分支名，审查最多两轮。宿主实测（benchmark，Claude Code 2.1.283）决定了三处口径：`isolation: "worktree"` 子代理默认从 `origin/HEAD` 分出→必须设 `baseRef: "head"`；宿主拦 `Edit`/`git -C` 但不拦 Bash 绝对路径写主检出→规则写「部分硬拦」并要求合并前主会话查主检出；worktree 无 `.venv`、editable `.pth` 指回主检出→分配表必须写环境取法并核实 `__file__`。审稿子代理（只读，锚定正本 `41a87b2`）提出的 18 条意见全部采纳进正文，唯「把 `baseRef` 改到项目级 settings.local.json」不采纳——用户拍板的是机器级开关。
 
 ## 口径统一清单（不算冲突、但各处不一致的细节）
 
@@ -182,3 +191,4 @@
 | Monitor 管道与 pgrep 括号技巧（2026-09-26） | `AGENTS.md` 第 7 条写全，`CLAUDE.md` Monitor 改为引用 | CLAUDE.md、AGENTS.md 第 7 条 |
 | 来源分支名（2026-09-26） | 现名 `v2-eval-0917` / `PolicyEvalThirdParty-v2-eval-0917`（sha 不变）；evalgl `v2-vail-eval-0917` 未改名 | README.md、docs/sources.md、docs/excluded.md |
 | 通用块内链接（2026-09-26） | 相对链接一律改为 `https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/...` 绝对链接（见 P） | AGENTS.md、CLAUDE.md、greatlakes.md 通用块 |
+| 子代理提交体例（2026-10-01） | 计划执行模式下子代理 commit 固定前缀 `sub/<子任务编号>: `、简式三项 body、不占项目版本号；合并提交承担第 11 条六项 body | CLAUDE.md「计划执行模式」、AGENTS.md 第 11 条 |

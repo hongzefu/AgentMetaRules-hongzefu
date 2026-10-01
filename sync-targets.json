@@ -2,13 +2,13 @@
   "canon": {"path": "/data/hongzefu/AgentMetaRules-hongzefu", "branch": "main",
             "files": {"AGENTS.md": "common-agents", "CLAUDE.md": "common-claude", "greatlakes.md": "common-greatlakes"}},
   "targets": [
-    {"name": "benchmark", "path": "/data/hongzefu/robomme_benchmark_MotionJEPANewTask", "branch": "newtaskRelease-v5",
+    {"name": "benchmark", "path": "/data/hongzefu/robomme_benchmark_MotionJEPANewTask", "branch": "newtaskRelease-taskV8",
      "remote": "https://github.com/hongzefu/robomme_benchmark_MotionJEPA.git",
      "files": {"AGENTS.md": "common-agents", "CLAUDE.md": "common-claude", "greatlakes.md": "common-greatlakes"}},
     {"name": "policy", "path": "/data/hongzefu/robomme_policy_learning_MotionJEPA", "branch": "v2-motionmem",
      "remote": "https://github.com/hongzefu/robomme_policy_learning_MotionJEPA.git",
      "files": {"AGENTS.md": "common-agents", "CLAUDE.md": "common-claude", "greatlakes.md": "common-greatlakes"}},
-    {"name": "mjepa", "path": "/nfs/turbo/coe-chaijy-unreplicated/hongzefu/MotionJEPA", "branch": "v6.1.2-awsNoSlurm",
+    {"name": "mjepa", "path": "/nfs/turbo/coe-chaijy-unreplicated/hongzefu/MotionJEPA", "branch": "v6.2-minimal-repo",
      "remote": "https://github.com/hongzefu/MotionJEPA.git",
      "files": {"AGENTS.md": "common-agents", "CLAUDE.md": "common-claude", "greatlakes.md": "common-greatlakes"}}
   ]
