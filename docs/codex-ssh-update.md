@@ -13,6 +13,14 @@
 3. 若常驻后端版本仍旧，先核实该后端上是否有别的在跑任务及其归属。`codex app-server daemon restart` 会影响共用后端；只有确认可以中断相关会话或取得相应授权后才执行。保留已有任务，不用 `pkill`、通配 `kill` 或全局清理代替精确管理命令。
 4. 后端重启后重新连接桌面 SSH，在桌面模型选择器中核对 `GPT-6.1-Sol`，再从**桌面 App** 发起一条最小请求，确认所选模型与完成状态。分别记录 `DAEMON_VERSION=PASS`、`APP_MODEL_LIST=PASS`、`APP_INFERENCE=PASS`；任一步未完成，就如实标为未验证。
 
-本次只完成第 1、2 步；第 3、4 步尚未执行。`~/.codex/config.toml` 的默认 `model = "gpt-6-sol"` 不会自动改成 GPT-6.1；用户可在更新后的桌面模型选择器里显式选择新模型。
+上述旧后端排查阶段只完成第 1、2 步。随后尝试 `codex app-server daemon restart` 和 `bootstrap`，均因旧进程不受 daemon 管理而失败；独立的精确切换任务向旧进程发送 `TERM` 后也未能在当时确认退出。不能把这些尝试记为切换成功。
+
+### 后续本地复核与桌面验证
+
+2026-10-01 从本地 MacBook 经 SSH 复核，`codex app-server daemon version` 返回 `cliVersion=0.159.3`、`managedCodexVersion=0.159.3`、`appServerVersion=0.159.3`。运行中的后端与代理进程 `/proc/3573370/exe`、`/proc/3573535/exe` 都指向 `0.159.3-x86_64-unknown-linux-musl/bin/codex`；远端 `models_cache.json` 中已出现 `gpt-6.1-sol`。旧后端后来如何退出、由什么动作启动新版进程，本轮没有确认，故不将前述失败的切换任务写成成功原因。
+
+用户提供的 Codex 桌面截图显示，新聊天执行主机为 `vail`，模型菜单中 `GPT-6.1 Sol` 可见且带选中标记。截图只证明桌面菜单与选择状态，没有展示该桌面聊天完成推理。当前验收状态：`DAEMON_VERSION=PASS`、`APP_MODEL_LIST=PASS`、`APP_INFERENCE=UNVERIFIED`。此前新版 CLI 的最小推理通过，仍只属于 CLI 验证。
+
+`~/.codex/config.toml` 的默认 `model = "gpt-6-sol"` 不会自动改成 GPT-6.1；用户已在更新后的桌面模型选择器中显式选中新模型。
 
 参考：[GPT-6.1 Sol 模型标识符](https://developers.openai.com/api/docs/models/gpt-6.1-sol)、[Codex app-server 的 `model/list` 与推理区别](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server)、[模型目录的缓存边界](https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference)。
