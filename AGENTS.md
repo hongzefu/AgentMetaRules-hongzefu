@@ -304,6 +304,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
     - **每片必须用独立输出目录**：进度文件落在各自的 save_dir 下，多片并发写同一个目录会互相覆盖进度；分片各写各的，最后合并再汇总。
     - **server 就绪判定分两层**：健康检查端点通过只证明**权重已加载且开始监听**，**不证明首次推理就绪**（JIT 编译发生在第一次推理，client 首次调用的超时要单独放宽）。轮询循环里必须同时检查 server 进程是否已死（`kill -0 $SERVER_PID`），死了立刻退出并 `tail` 日志，不要空等到超时。
     - **起跑前探端口**：`(exec 3<>/dev/tcp/127.0.0.1/$PORT)` 成功即说明端口已被占用，换端口重试——防止连到别人的服务、静默产出空结果。
+    - **给用户的网页链接一律写完整域名（2026-10-02 新增）**：在本机起的站点、看板、文件服务等，交给用户的链接必须写机器的完整域名加端口，如本机 sled-vail 写 `http://sled-vail.eecs.umich.edu:8081/`（aspen 为 `sled-aspen.eecs.umich.edu`）；不得写短主机名 `http://sled-vail:8081/`、`localhost` 或 `127.0.0.1`——短名在用户的浏览器里解析不到，链接打不开。带锚点的深链接同样以完整域名开头（如 `http://sled-vail.eecs.umich.edu:8081/#task=MoveCube&tier=xhard0&ep=1`）。用户原话（2026-10-02）：「注意你给我链接要是 http://sled-vail.eecs.umich.edu:8081/ 你现在给的是错误的」「这个约定加入agentmetarules」。
     - **`trap cleanup EXIT` 收掉 server**，否则调度器发 SIGTERM 时留孤儿进程、`EXIT_CODE=` 行不落盘；sbatch 层用 `exec` 交棒给带 trap 的运行器，让终止信号直达运行器而不是打到 wrapper 上。任何需要第二个 CUDA 上下文的情形（同卡多进程，**或单进程内 torch + Vulkan/图形互操作，如 SAPIEN / ManiSkill 渲染**）sbatch / srun 都要加 `--gpu_cmode=shared`——集群默认 `exclusive`，不加则 Vulkan 建不了 device（详见 `greatlakes.md`）。
     - **不得依赖「重试到出结果文件」作为恢复机制**：进程活着、不报错退出、不产出任何结果、持续占着 GPU 的静默空转，外层重试包装接管不到。改为按进度文件 mtime 做无进展检测（超阈值即杀掉重起）+ 有限次重试 + 对最终结果文件的完整性断言（任务数、episode 数）。盯这类作业不能只等「完成」事件，过滤器必须同时覆盖缺陷特征行。
     - **探针失败就记录失败并定位原因，不自动降级**到未验证的候选配置（如 CPU 渲染）；作业模板不得继承上一轮诊断遗留的兼容开关或设备覆盖（起跑前显式 `unset`）；同卡共驻等资源组合在探针验证前只是「待验证的起始配置」，不是已证结论。
