@@ -168,7 +168,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 
       纯文档/一行修补类微小改动，body 可相应精简，但用户指令原话与测试/验证结果两项不可省。
     - **只 commit 本轮自己改的内容**：一律 `git add <逐个明确路径>`，**禁止 `git add -A`、`git add .`、`git commit -a`** 这类全量暂存——它们会把用户或其他 agent 的在途改动一并裹进来。同文件混有他人改动时，用 `git apply --cached` 只暂存确认属于本轮的 hunk，不能整文件带入。
-    - **提交前先 `git status --short` 核对工作区**：存在不属于本轮改动的文件（用户或其他 agent 的在途编辑、遗留脏文件）时**一律绕开、不提交**，必要时在汇报里点名交用户处置。**不得对用户及其他 agent 的在途改动做提交、stash、checkout、clean、删除或回滚中的任何一种**；不为得到 clean HEAD 擅自清理工作区。其他条目提到「不碰他人在途改动」均指本条。
+    - **提交前先 `git status --short` 核对工作区**：存在不属于本轮改动的文件（用户或其他 agent 的在途编辑、遗留脏文件）时**一律绕开、不提交**，必要时在汇报里点名交用户处置。**不得对用户及其他 agent 的在途改动做提交、stash、checkout、clean、删除或回滚中的任何一种**；不为得到 clean HEAD 擅自清理工作区。其他条目提到「不碰他人在途改动」均指本条。**唯一例外**：Claude Code 的 `SubagentStop` hook 只追加写入的 `docs/subagent-stats/over-15min.jsonl`（超过 15 分钟的子代理统计，机制见 `CLAUDE.md`「子代理超时统计」）——任何会话提交时都可把它整文件带入，但不得删改已有行；判定工作区 clean 时排除它。
     - **每次 `git commit` 完成后必须立即 `git push` 同步到远端**，不得让已提交的 commit 滞留本地；本轮结束时 `git status -sb` 首行不得残留 `ahead` 计数。该同步已获用户长期授权，无需逐次确认；凭据走 gh CLI（`credential.https://github.com.helper=!/usr/bin/gh auth git-credential`），HTTPS 免交互。**声明式例外**：项目 `AGENTS.md` 明确声明「本仓库不继承自动推送授权」、当前分支没有 upstream、仓库是第三方 fork 或当前机器是无凭据一侧时，不得自行推送，先问用户再决定是否 `git push -u origin <branch>`。
     - push 只推当前分支到其既有 upstream（裸 `git push`）。**禁止 `git push --force` 与 `--force-with-lease`**。push 被拒（非快进、认证失败、网络不可达）时立即停止，将 git 原始报错交用户处置，不得改写历史或反复重试。**例外（用户逐次批准，2026-09-26）**：本地分支带着他人在途 commit、又必须把自己的改动同步到远端时，用 plumbing 在远端 HEAD 上构造**只含自己改动文件**的 commit 并 `git push origin <sha>:refs/heads/<分支>` 快进推送，本地再落一个以该 commit 为第二父的合并提交（脚本与流程见第 25 条同步机制）；被拒仍立即停止，最多重建一次，不 force。
     - **禁止 `git clean -x`、`git clean -X`** 及等效删除被忽略产物的清理方式（会删掉 `<STORE_ROOT>` 下全部不进 git 的数据，并破坏 worktree 管理状态）。带覆盖选项或清空输出根的命令执行前，核实确切目录、符号链接目标、内容归属和授权；不能因文件未被 Git 跟踪就认为可以删除。检查历史优先使用 `git log`、`git show`、`git ls-tree`、`git diff`；需要运行历史版本时使用隔离 worktree 或恢复分支，不能覆盖用户现有修改。
@@ -257,7 +257,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
     来源：policy/AGENTS.md 规则 18；mjepa/AGENTS.md 规则 18；benchmark/AGENTS.md 第三阶段第 5 条；env-b-aws-replication.md 二节、7.4 节。
 
 19. **纯审计任务**（代码/文档评审、对抗验证、Codex 审计等一切不修改仓库的评审类任务，无论由 Claude 还是 Codex 执行）**只看任务发起那一刻的仓库，后续改动一律不看。** 锚定规则：
-    - **发起**：立即记录 `AUDIT_BASE=$(git rev-parse HEAD)` 并运行 `git status --porcelain`。porcelain 非空（**含未跟踪 `??` 条目**）→ 可能是用户或其他 agent 的在途工作，按第 11 条一律不动，立即停止并把 porcelain 原文交用户三选一：(a) 等改动落地后再审；(b) 只审 `AUDIT_BASE`、报告中列出被排除的在途改动清单；(c) 审当前工作区、放弃锚定（报告须标注「未锚定」）。未获用户答复不得开审；期间可以继续读取已明确范围的提交内容。
+    - **发起**：立即记录 `AUDIT_BASE=$(git rev-parse HEAD)` 并运行 `git status --porcelain`。porcelain 非空（**含未跟踪 `??` 条目**；只追加的 `docs/subagent-stats/over-15min.jsonl` 除外，见第 11 条）→ 可能是用户或其他 agent 的在途工作，按第 11 条一律不动，立即停止并把 porcelain 原文交用户三选一：(a) 等改动落地后再审；(b) 只审 `AUDIT_BASE`、报告中列出被排除的在途改动清单；(c) 审当前工作区、放弃锚定（报告须标注「未锚定」）。未获用户答复不得开审；期间可以继续读取已明确范围的提交内容。
     - **范围冻结**：审计范围冻结在 `AUDIT_BASE`——不看其后的文件改动，**也不读取其后的任何 ref / commit / diff**（`git log AUDIT_BASE`、`git show AUDIT_BASE:<path>` 允许；裸 `git log`、`git diff HEAD`、`git log <branch>` 禁止）。git worktree 快照只冻结文件、不冻结 refs，此条不因使用快照而豁免。用户明确要求审当前工作区时，记录实际范围并标明其中未提交内容未由该提交锚定。
     - **禁执行**：纯审计不得执行仓库内任何脚本、测试或训练命令，不得 `uv run` / `uv sync`（脚本会按自身位置推仓库根并 `mkdir` 目录树，在快照里执行会凭空造出假 `<STORE_ROOT>`）。需要动态验证即不属纯审计，先明确新的验证范围并按第 3、7 条另行请示；已有执行授权按其执行，不把它描述为纯静态审计。
     - **收官复核**：报告产出前重跑 `git rev-parse HEAD` 与 `git status --porcelain`；与发起时不一致 → 报告开头写明「审计期间仓库由 X 变为 Y，本报告锚定 X」并列出期间变动的文件，交用户决定是否补审；不自动把新版本算作已审。

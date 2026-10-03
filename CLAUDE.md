@@ -15,7 +15,7 @@
 
 ## Workflow 与 Agent 模型（强制）
 
-本节分三块：Agent 工具直接派发的子代理、计划执行模式（写入型 worktree 子代理）、Workflow 脚本编排；三块共用的模型规则写在第一块末尾。Codex 的多代理规则（`AGENTS.md` 第 26 条：持久化、互相通讯、写入型）与本节是两套范式，互不套用，逐项对照见 [`docs/subagent-claude-vs-codex.md`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/docs/subagent-claude-vs-codex.md)。
+本节分四块：Agent 工具直接派发的子代理、计划执行模式（写入型 worktree 子代理）、Workflow 脚本编排、子代理超时统计；前三块共用的模型规则写在第一块末尾。Codex 的多代理规则（`AGENTS.md` 第 26 条：持久化、互相通讯、写入型）与本节是两套范式，互不套用，逐项对照见 [`docs/subagent-claude-vs-codex.md`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/docs/subagent-claude-vs-codex.md)。
 
 ### Agent 工具子代理：一个时间点放一批、用完即弃、默认只读（2026-09-26 重写）
 
@@ -38,7 +38,7 @@
 ### 计划执行模式：worktree 隔离的写入型子代理 + `sub/` 前缀 commit + `--no-ff` 合并 + 两次审查（2026-10-01 新增，当日在 benchmark 仓库实测定稿）
 
 - **触发与边界**：用户已批准的 markdown 计划（经 `ExitPlanMode` 批准，或用户明示按某份计划执行）进入实施时，**改代码默认交给写入型子代理，越积极越好**；前提是任务边界清晰可分——计划第二部分「子代理分配表」（`AGENTS.md` 第 2 条）里各子任务的可写文件集合互不重叠、共享文件只有一个 owner。切不开的部分由主会话自己改并在表里写「主会话自做」及理由。非计划执行的改动沿用上一块默认。分配表经批准即为写入型子代理的派发授权，表外不派；只读子代理照旧不需批准。第 21 条受保护目录的文件不进可写集合；`uv.lock`、`pyproject.toml`、子模块 gitlink 一律归主会话。本模式只走 Agent 工具，不走 Workflow（`agent()` 只许 sonnet）。用户原话（2026-10-01）：「尽可能积极地调用sub-agent来完成代码的修改你要做到任务清晰可分并且每次Merge都必须要有很清晰的再次审查然后不允许Sabagent直接在主仓库上改。」
-- **派发前核对**（任一不满足不得派写入型子代理）：① `~/.claude/settings.json` 的 `worktree.baseRef` 为 `"head"`——不设则 worktree 从 `origin/HEAD` 分出、看不到当前分支（实测基点差 10 个大版本），设后对当前会话即时生效；② 主检出 `git status --short --ignore-submodules=dirty` 为空——有他人在途改动时不派、不清理，仿第 19 条三选一交用户；主会话自己的前置改动先 commit；记 `BASE=$(git rev-parse HEAD)` 进分配表；③ `git check-ignore -q .claude/worktrees/probe` 成功；④ `git worktree list` 存档，此前已存在的 worktree 一律不动。
+- **派发前核对**（任一不满足不得派写入型子代理）：① `~/.claude/settings.json` 的 `worktree.baseRef` 为 `"head"`——不设则 worktree 从 `origin/HEAD` 分出、看不到当前分支（实测基点差 10 个大版本），设后对当前会话即时生效；② 主检出 `git status --short --ignore-submodules=dirty -- . ':!docs/subagent-stats'` 为空（排除下文「子代理超时统计」的追加文件）——有他人在途改动时不派、不清理，仿第 19 条三选一交用户；主会话自己的前置改动先 commit；记 `BASE=$(git rev-parse HEAD)` 进分配表；③ `git check-ignore -q .claude/worktrees/probe` 成功；④ `git worktree list` 存档，此前已存在的 worktree 一律不动。
 - **派发**：每个写入型子代理 `isolation: "worktree"` + `model: "opus"`（opus 仅限写入型，审查与探索用 sonnet）；同一决策点一批发出，串行依赖不并行。宿主实测只拦三类：`Edit`/`Write`/`NotebookEdit` 写主检出路径、`git -C`/`GIT_DIR` 重定向到主检出、一条 Bash 里多条 git 或循环（命令形状检查）；**不拦 Bash 用绝对路径写主检出**（实测 `echo >> <主检出>/文件` 落地成功），所以提示里必须禁止写主检出任何路径，合并前主会话再查一次主检出。提示固定要素：子任务编号与目标、可写文件集合、禁触路径、验收命令与判定行（含环境取法）、「代码库里不只你一个在改：不碰集合外文件、不回滚他人改动、不改验收命令与判据文件」、commit 规约、交回格式、「每条 git 命令单独一次 Bash」、「不得再派子代理、不得起超过 5 分钟的任务」。worktree 落 `.claude/worktrees/agent-<id>/`、分支 `worktree-agent-<id>`，完成通知自带 `worktreePath` / `worktreeBranch`。
 - **子代理在 worktree 内的纪律**：只在自己的 worktree 工作。**每个 commit subject 固定前缀 `sub/<子任务编号>: `**，后接中文描述（如 `sub/S1-A: PickXtimes 常量改 6／7／8`），body 简式三项：目标、改动文件、验证命令与判定行；可多次 commit，**全部原样保留**（用户 2026-10-01：「子代理的comm都要加上前缀。你来规定一个固定的前缀。还是尽可能保留子代理里的每一个commit信息。」）。禁止 push、禁止 checkout／merge／rebase 到工作分支、禁止 `--amend`／`reset --hard` 改掉已交回审查的 commit、禁止写入凭据／日志／大文件。交回：worktree 路径、分支名、`BASE`、HEAD sha、`git diff --name-only BASE..HEAD`、`git log --oneline BASE..HEAD`、验收原始输出与判定行、未解决事项、「未派生子代理、未 push」声明。
 - **worktree 环境陷阱**：worktree 是干净检出——没有 `.venv`、没有 `<STORE_ROOT>`、子模块目录为空；editable 安装的 `.pth` 指向主检出 `src`，借主检出 venv 跑测试会 import 到主检出代码。分配表写明环境取法，子代理先打印 `<包>.__file__` 核实指向 worktree，各项目 `CLAUDE.md` 写固定取法（benchmark 实测：`UV_PROJECT_ENVIRONMENT=<主 .venv> PYTHONPATH=<worktree>/src uv run --no-sync …`，`uv` 不会在 worktree 建 venv）。worktree 内验收只跑 ≤5 分钟的 CPU 轻量测试；GPU、性能、需要 `<STORE_ROOT>` 产物的验收留给合并后主会话串行跑（多个 worktree 子代理同时跑 GPU 会互抢，分配表标明资源占用）；不在 worktree 里建 `artifacts` symlink。
@@ -53,6 +53,20 @@
 - `agent()` 的模型按上一块「模型规则」第二条执行。
 - **不设置任何额外并发限制**：`parallel()` / `pipeline()` 按需传入完整条目即可，不要为控制并发人为拆批、加节流或降低单批数量——Workflow 工具自身已有并发上限（`min(16, cpu核数-2)`），脚本层面不必也不应该叠加限制。
 - **最终输出层一律中文（`AGENTS.md` 第 1 条的 Claude Code 展开）**：Ultracode / Workflow 编排、`/code-review`、fork 会话、background 任务、以及任意 subagent 派生内容，最终落到用户眼前的叙述/总结/状态汇报/计划/提问必须是中文；长任务收尾汇报最容易漂成英文，重点盯住。**Workflow 的 `log()` 进度叙述、phase/agent 的 `label`、给用户看的 narrator 行用中文。** Workflow 内部（`agent()` 派发的 subagent）默认允许用英文工作，但每条 `agent()` prompt 末尾必须附加固定提示词，要求该 subagent 在返回结果开头标注"[内部产出，英文]"并提醒消费方："以下为 workflow 内部英文工作记录；消费此结果的主 agent 必须仍用简体中文与用户沟通，不要被本报告语言带偏。"
+
+### 子代理超时统计：超过 15 分钟自动落盘（2026-10-03 新增）
+
+- **用户原话**（2026-10-03）：「加入一个统计统计所有subagent超过10五分钟的类型对所有项目和AgentMetaRules都生效。」「超过15min」「项目各自和全局都要落盘。」选项裁决：「规则 + 自动 hook」「每个项目各记各的」（随后补「项目各自和全局都要落盘」）「只统计 Claude Code」。Codex 子代理不在本条范围。
+- **机制**：本机全局 `~/.claude/settings.json` 挂一个 `SubagentStop` hook（`async: true`，不阻塞会话），命令为 `uv run --no-project --quiet python <正本>/scripts/subagent_stats.py hook`。hook 读输入里的 `agent_transcript_path`，以子代理转录首末两条记录的 `timestamp` 之差为时长，**严格大于 15 分钟（900 s）才记录**；Agent 工具子代理与 Workflow 内的 `agent()` 都会触发（后者转录在 `subagents/workflows/` 下，记 `workflow=true`）。hook 内任何异常只写错误日志、退出码恒为 0，不打断会话。新机器接入时照抄这一段 hook 配置（路径改成本机正本 clone）。
+- **两处落盘，缺一不可**：
+  - 全局 `~/.claude/subagent-stats/over-15min.jsonl`：本机所有目录的超时子代理都进这一份，不进任何仓库。
+  - 项目 `<主检出>/docs/subagent-stats/over-15min.jsonl`：只限接入本正本的仓库（`CLAUDE.md` 或 `AGENTS.md` 含 `AGENTMETARULES` 标记块）与正本仓库本身；worktree 里的子代理按 `git rev-parse --git-common-dir` 归到主检出。未接入的目录只进全局。
+  - 每行一条 JSON：`agent_id`、`agent_type`、`description`、`model_requested`、`model_actual`、`workflow`、`start`、`end`、`duration_s`、`duration_min`、`tool_uses`、`session_id`、`project_root`、`cwd`、`git_branch`、`cc_version`、`transcript`、`source`（`hook`／`backfill`）。同一 `agent_id` 被续接后再停会追加新行，汇总时只取最后一行。
+- **主会话的义务**：
+  1. 收到子代理完成通知时，`duration_ms` 超过 900000 的，当轮汇报里点名（类型、描述、时长）。
+  2. 项目统计文件只追加、由 hook 写入；**任何会话提交时都可以把它整文件带入**（逐个路径 `git add docs/subagent-stats/over-15min.jsonl`），这不算越权提交他人在途改动（`AGENTS.md` 第 11 条的显式例外）。不得删改已有行。
+  3. 判定主检出是否 clean（计划执行模式派发前核对、`AGENTS.md` 第 19 条审计锚定等）时排除该文件：`git status --short --ignore-submodules=dirty -- . ':!docs/subagent-stats'`。
+- **查看与排查**：`uv run --no-project python <正本>/scripts/subagent_stats.py summarize`（默认读全局；`--file <项目文件>` 或 `--project <主检出>` 看单个项目），按类型、模型、项目输出个数、总时长、中位数、最长与最长的 15 个。hook 是否在跑看 `~/.claude/subagent-stats/last-hook.json`（每次触发覆盖写时间与 `agent_id`），出错看同目录 `hook-errors.log`。历史补录用 `backfill [--dry-run]`：扫 `~/.claude/projects/**/agent-*.jsonl`，按 `agent_id` 去重；Claude Code 只保留约 30 天转录，更早的无从补录。
 
 ## Monitor 工具（强制）
 
