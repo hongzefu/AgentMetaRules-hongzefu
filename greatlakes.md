@@ -23,9 +23,9 @@ push + 数字匹配，强烈推荐 TOTP），不要默认或复用上次选择�
 ## 资源约束（硬规则，不可静默放宽）
 
 - `--account=chaijy2`：不能切换到任何其他 account（即便看到别的 account 可绕过排队也不行）；
-- `--partition=spgpu`：不能用其他 partition（如 standard / gpu / largemem）；
+- `--partition=spgpu`：不能用其他 partition（如 standard / gpu / largemem）；唯一长期例外是「HF 上传校验 job」走 `standard`（见同名一节）；
 - `--nodes=1` + `--ntasks-per-node=1`：永远只提单 node 单 task；
-- **一切工作负载一律经占位 job 运行，不把工作负载直接 `sbatch`**（用户 2026-09-25、2026-09-26 定）：先
+- **一切工作负载一律经占位 job 运行，不把工作负载直接 `sbatch`**（用户 2026-09-25、2026-09-26 定；唯一例外是「HF 上传校验 job」直接 `sbatch` 跑完即退）：先
   `sbatch --gres=gpu:1 --time=48:00:00 --wrap='sleep infinity'` 拿席位，再用
   `srun --jobid=<hold> --overlap --exact --ntasks=1 --cpus-per-task=<n> --gpu_cmode=shared <脚本>` 塞进去跑；
   长训练同样在占位 job 内跑，预计超过 48 h 的训练靠 checkpoint 续到下一个占位 job，续跑前先问用户。
@@ -300,6 +300,30 @@ anon（+shmem）峰值（实测 3.85 GiB），file 页缓存永远填满剩余�
   但 NFS 上逐帧读大文件很慢（144 局全字段比较 10～15 min、合并 40 GB 约 25 min），多条比较链并行只是分摊等待。
 - **删测试目录前先抠小文件**：`run.log`、`run_config.json`（hostname/GPU/驱动指纹）、`results/*.json`、`jobs/`、`logs/`、
   合并 metadata 归到仓库再 `rm -rf`。2026-09-22 两条线的这些文件随大目录一起删了，只拦下一份。
+
+## HF 上传校验 job（2026-10-03 定，硬规则）
+
+用户原话（2026-10-03）：「上传HUGingFace的文件需要校验。但是校验不要在本机进行你可以生成一个在greatlake上的纯CPUJ0B来实现。以后都要这么做写进AgentMetarule」；同日 AskUserQuestion 选定「standard 分区」「直接 sbatch 跑完即退」。
+
+- **适用范围**：凡上传到 HF（model / dataset repo 或 Storage Bucket）的文件，上传后的读回校验一律放在 greatlakes 纯 CPU job 里做，**不在本机**（sled-vail、aspen 等工作机）下载或重算。只限这类校验，不外延到其他 CPU 工作负载。
+- **提交规格**：
+  `sbatch --account=chaijy2 --partition=standard --nodes=1 --ntasks-per-node=1 --cpus-per-task=4 --mem=8G --time=12:00:00 --job-name=<任务>-hfverify --output=<NFS 日志目录>/%x_%j.out <校验脚本>`
+  - 不带 GPU，不带 `--gpu_cmode`；
+  - 这是「只用 `spgpu`」与「一律经占位 job」两条规则的唯一长期例外；
+  - 规格超过默认值时，按「算力使用规则」第 7 条先提交、再提醒用户；
+  - 正常结束自行释放；超时或失败时，按清单 `scancel` 自己的 JobID（第 10 条），不 `scancel -u`。
+- **校验做法**：
+  - job 内逐个对象流式读回（HTTP 分块读取，边下边算 sha256，不落盘，节点 `/tmp` 也不留文件），与上传时随附的 `SHA256SUMS` 逐行比对；
+  - 同时核对对象数、逐对象字节数，以及清单外是否多出对象；
+  - 末行写判定行 `HF_VERIFY=PASS|FAIL objects=<n> sha_match=<n> size_equal=<n> missing=<n> extra=<n>`，日志落 NFS，结束追加 `EXIT_CODE=`；
+  - 正式校验前，先用同一脚本只校验 1 个小对象做冒烟。
+- **清单来源**：`SHA256SUMS` 里的 sha 优先取生成或搬运时已经记录并核对过的值（例如节点上逐局算过、暂存时复核过的 sha），不为了生成清单在本机重读大文件；只有没有记录的小文件才在本机计算。
+- **凭据**：
+  - 私有对象的 HF token 只经环境变量进入 job：提交端环境里已有 `HF_TOKEN` 时用 `--export=ALL`。不写进脚本、日志、命令行参数或 GL 上的任何文件（第 15 条）。
+  - GL 侧没有可用的 token 来源时，先问用户，不自行在 GL 落 token 文件。
+  - 公开对象匿名读取。
+- **网络**：计算节点出网走 HTTP 代理（GL 实测）。冒烟不通时记录原始报错并交用户，不改在本机校验。
+- **无集群访问的环境**：按 `AGENTS.md` 第 8 条无集群分支，在本机校验，并在汇报里写明原因。
 
 ## aspen（sled 组自有机器，2026-09-22 打通）
 
