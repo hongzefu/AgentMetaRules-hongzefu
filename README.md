@@ -72,7 +72,7 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 - `~/.claude/greatlakes.md` 与 `~/.claude/skills/greatlakes-usage/` 是本仓库对应文件的副本，正本更新后重新同步：`cp greatlakes.md ~/.claude/greatlakes.md`、`cp -r skills/greatlakes-usage ~/.claude/skills/`。
 - 全局 `~/.claude/CLAUDE.md` **不再** `@` 导入本仓库（2026-09-27 撤掉；2026-09-26 曾改为两行 `@` 导入，2026-09-18 曾决定不提供全局替换版）。原因：正本与项目标记块是同一份内容，双份注入使每个会话启动即多占约 30k token（MotionJEPA 实测启动注入 139k 字 → 78k 字）。会话里生效的只有项目仓库内的标记块副本；未接入的目录先按第 25 条用 `sync_rules.py` 接入。全局文件只保留「本机专属」一节。**不得再把 `@` 导入加回全局文件。**旧版（2026-09-01）「greatlakes 集群」一节的过期提交器路径与权威源指向随之失效（见 [`docs/merge-decisions.md`](docs/merge-decisions.md) C、D 两项）。
 - Codex 侧：`~/.codex/AGENTS.md` 指向本仓库 `AGENTS.md`；`~/.codex/config.toml` 设 `project_doc_max_bytes = 131072`——Codex 默认只读 `AGENTS.md` 前 32 KiB，正本与各项目副本都已超过，不调大会静默丢掉后半截规则（见 [`docs/merge-decisions.md`](docs/merge-decisions.md) P）。
-- Aspen Codex 角色：`~/.codex/agents/*.toml` 分别指向本仓库 `codex/aspen/agents/*.toml`；`~/.codex/config.toml` 的主模型与 `[agents]` 默认值按 [`docs/codex-aspen-gpt56-roles.md`](docs/codex-aspen-gpt56-roles.md) 固定。角色正本更新后不复制散落副本，保持符号链接并重新运行该文档中的验收命令。
+- Aspen Codex 角色：本仓库 `codex/aspen/agents/*.toml` 是正本，安装时逐个复制为 `~/.codex/agents/*.toml` 普通文件；`~/.codex/config.toml` 的主模型与 `[agents]` 默认值按 [`docs/codex-aspen-gpt56-roles.md`](docs/codex-aspen-gpt56-roles.md) 固定。2026-10-06 实测仓库外符号链接不会注册为可用角色，因此正本更新后必须重新复制并运行逐文件哈希与运行时验收。
 
 ## MotionJEPA NFS 检出接续步骤
 
