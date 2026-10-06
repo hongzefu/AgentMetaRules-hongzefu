@@ -31,8 +31,10 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 | [`docs/excluded.md`](docs/excluded.md) | 明确不收的项目专属内容（按仓库列） |
 | [`docs/maniskill-multiprocess.md`](docs/maniskill-multiprocess.md) | ManiSkill / robomme 多进程与多 worker 生成的实测经验：`mplib` 墙钟预算导致的不可复现、跨架构不变量、夹爪元素与末段错位陷阱、官方比较器边界、吞吐、容差校验结论（2026-09-22） |
 | [`docs/codex-app-ssh-multiagent.md`](docs/codex-app-ssh-multiagent.md) | Codex SSH App 新任务 16 个子代理实测及第 17 个容量拒绝记录；V2 多代理工具集与空闲代理自动卸载（2026-09-26） |
+| [`docs/codex-aspen-gpt56-roles.md`](docs/codex-aspen-gpt56-roles.md) | Aspen 仅使用 GPT-5.6 的 Codex 主代理、子代理角色映射、安装与验收口径（2026-10-06） |
 | [`docs/codex-ssh-update.md`](docs/codex-ssh-update.md) | Codex SSH App 更新、常驻后端切换及桌面模型菜单验证记录（2026-10-01） |
 | [`docs/subagent-claude-vs-codex.md`](docs/subagent-claude-vs-codex.md) | Claude Code 与 Codex 两套子代理规则（`CLAUDE.md`「Agent 工具子代理」、`AGENTS.md` 第 26 条）的官方依据对照（2026-09-26） |
+| [`codex/aspen/agents/`](codex/aspen/agents/) | Aspen 全局 Codex 自定义角色正本：`default`、`planner`、`explorer`、`worker`、`reviewer`、`tester`，全部固定在 GPT-5.6 家族 |
 
 ## 来源锚定
 
@@ -70,6 +72,7 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 - `~/.claude/greatlakes.md` 与 `~/.claude/skills/greatlakes-usage/` 是本仓库对应文件的副本，正本更新后重新同步：`cp greatlakes.md ~/.claude/greatlakes.md`、`cp -r skills/greatlakes-usage ~/.claude/skills/`。
 - 全局 `~/.claude/CLAUDE.md` **不再** `@` 导入本仓库（2026-09-27 撤掉；2026-09-26 曾改为两行 `@` 导入，2026-09-18 曾决定不提供全局替换版）。原因：正本与项目标记块是同一份内容，双份注入使每个会话启动即多占约 30k token（MotionJEPA 实测启动注入 139k 字 → 78k 字）。会话里生效的只有项目仓库内的标记块副本；未接入的目录先按第 25 条用 `sync_rules.py` 接入。全局文件只保留「本机专属」一节。**不得再把 `@` 导入加回全局文件。**旧版（2026-09-01）「greatlakes 集群」一节的过期提交器路径与权威源指向随之失效（见 [`docs/merge-decisions.md`](docs/merge-decisions.md) C、D 两项）。
 - Codex 侧：`~/.codex/AGENTS.md` 指向本仓库 `AGENTS.md`；`~/.codex/config.toml` 设 `project_doc_max_bytes = 131072`——Codex 默认只读 `AGENTS.md` 前 32 KiB，正本与各项目副本都已超过，不调大会静默丢掉后半截规则（见 [`docs/merge-decisions.md`](docs/merge-decisions.md) P）。
+- Aspen Codex 角色：本仓库 `codex/aspen/agents/*.toml` 是正本，安装时逐个复制为 `~/.codex/agents/*.toml` 普通文件；`~/.codex/config.toml` 的主模型与 `[agents]` 默认值按 [`docs/codex-aspen-gpt56-roles.md`](docs/codex-aspen-gpt56-roles.md) 固定。2026-10-06 实测仓库外符号链接不会注册为可用角色，因此正本更新后必须重新复制并运行逐文件哈希与运行时验收。
 
 ## MotionJEPA NFS 检出接续步骤
 
