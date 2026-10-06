@@ -59,7 +59,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
    来源：benchmark/AGENTS.md 规则 1；global CLAUDE.md「语言」；policy/AGENTS.md 规则 1；mjepa/AGENTS.md 规则 1。
 
 2. **所有计划必须用中文书写，计划与实施范围必须明确。** 仓库文档中的项目目标、未来 scope、roadmap、历史计划和示例命令都不等于当前实施授权；只执行用户本轮明确要求的工作，任何工具、回退机制或并行代理都不扩大这一范围。遇到范围、实现方式或破坏性操作存在歧义时，必须先询问用户，不得擅自扩展；已经明确的决定与授权沿用，不重复询问。计划默认分为两个部分（纯文档改动的计划例外，见下方第三条子项）：
-   - **第一部分（给人看）**：以可读叙述为主、结论先行，黑话仍应少用；但**关键机制与保证处必须给到代码级细节**——具体文件路径、命令、判定行、实测数字直接内联在叙述里，达到「读者不翻代码就能核对」的密度（2026-08-29 用户定标；标杆样例：robomme_policy_learning_MotionJEPA 仓库 `0829-destructive-restructure-plan.md` 第一部分「两条核心保证的原理」一节的分层写法——每层一段、层名点明结论、命令与判定行随层给出；项目可在 `<PLAN_EXEMPLAR>` 指定自己的标杆）；对文件的引用和对步骤的介绍必须精确，不能只在第二部分补足第一部分缺失的关键依据。「密度差不多」指每段的信息密度而非篇幅，不为凑长度灌水；对照标杆的六个特征写：
+   - **第一部分（给人看）**：以可读叙述为主、结论先行，黑话仍应少用；但**关键机制与保证处必须给到代码级细节**——具体文件路径、命令、判定行、实测数字直接内联在叙述里，达到「读者不翻代码就能核对」的密度（2026-08-29 用户定标；**标杆样例（2026-10-06 起所有仓库统一，用户原话「所有的密度的标杆都改成这个」）：robomme_benchmark_MotionJEPA 仓库 `docs/plans/1005-eval-video-phase2-all-models-rerun-plan.md` 的第一部分**——先「要做什么与全部运行一览」（三句话 + ASCII 批次图 + 批次表 + 已定口径原话），再逐模型「原侧是哪份代码、和上游原版差在哪」每模型三四条，然后「我们这一侧要改什么」一行一块的表（先说为什么非改不可），最后验收判定行表、步骤表、子代理分工简述；第一部分只留决策信息（约 90～130 行），每节一张表加一两段话，逐文件逐函数的细节整段移到第二部分并在第一部分末尾一句话指向；此前的标杆 policy 仓库 `0829-destructive-restructure-plan.md` 不再作标杆；项目可在 `<PLAN_EXEMPLAR>` 指定自己的标杆）；对文件的引用和对步骤的介绍必须精确，不能只在第二部分补足第一部分缺失的关键依据。「密度差不多」指每段的信息密度而非篇幅，不为凑长度灌水；对照标杆的六个特征写：
      1. **文首引言块**先定死权威性、代码锚点 commit、工作副本路径、commit 编号体例、外部依赖锚点，以及「只规划不实施、每步须单独获批」的授权边界。
      2. **总览节**给「一句话方案」加编号的「已定死口径」清单，每条口径注明依据所在小节；用户拍板的原话逐字保留、不替用户改写。
      3. **每个机制小节**按「定义 → `文件::函数` 锚点与配置键 → 公式或代码块 → 数轴 / 示意图演示 → ⚠ 陷阱与反例 → 带实测数字的收益」展开。
@@ -395,7 +395,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 | `<GL_ACCOUNT>` / `<GL_PARTITION>` / `<SSH_HOST>` | `chaijy2` / `spgpu` / `greatlakes` | 同 | 同 | 同 |
 | `<PROTECTED_DIRS>` | — | `src/robomme/`（默认冻结 `src/robomme/env_record_wrapper/RecordWrapper.py`） | — | — |
 | `<COMMIT_SUBJECT_STYLE>` | `commitV<x>.<y>:` + `docs:` / `fix:` / `revert:` | `<大>.<小>[.<修订>] <描述>`（如 `2.9.2 变体简图出图验证与账本补记`） | 照 `git log` | `commitV<x>.<y>:` |
-| `<PLAN_EXEMPLAR>` | `0829-destructive-restructure-plan.md` | `0901-motion-memory-plan.md`（在 policy 仓库；⚠ 原链接 `v2-motionmem/motion-memory-plan.md` 已 404） | — | `0829-destructive-restructure-plan.md`（在 policy 仓库；⚠ 其 AGENTS 原文写的 `v3-destructive-restructure-plan.md` 不存在于 MotionJEPA 仓库） |
+| `<PLAN_EXEMPLAR>` | benchmark 仓库 `docs/plans/1005-eval-video-phase2-all-models-rerun-plan.md` 第一部分（2026-10-06 起四仓库统一；此前为 policy 仓库 `0829-destructive-restructure-plan.md`） | 同左（此前为 policy 仓库 `0901-motion-memory-plan.md`） | 同左 | 同左（此前为 policy 仓库 `0829-destructive-restructure-plan.md`） |
 
 ## 附录 C：规则来源与未迁移清单
 
