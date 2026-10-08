@@ -10,6 +10,9 @@
      "files": {"AGENTS.md": "common-agents", "CLAUDE.md": "common-claude", "greatlakes.md": "common-greatlakes"}},
     {"name": "mjepa", "path": "/nfs/turbo/coe-chaijy-unreplicated/hongzefu/MotionJEPA", "branch": "v6.2-minimal-repo",
      "remote": "https://github.com/hongzefu/MotionJEPA.git",
-     "files": {"AGENTS.md": "common-agents", "CLAUDE.md": "common-claude", "greatlakes.md": "common-greatlakes"}}
+     "files": {"AGENTS.md": "common-agents", "CLAUDE.md": "common-claude", "greatlakes.md": "common-greatlakes"}},
+    {"name": "newtask-v3", "path": "/data/hongzefu/robomme_benchmark_newtask-v3-MotionJepa1006", "branch": "newtask-v3-MotionJepa1006",
+     "remote": "https://github.com/hongzefu/robomme_benchmark_MotionJEPA.git",
+     "files": {"AGENTS.md": "common-agents", "CLAUDE.md": "common-claude"}}
   ]
 }
