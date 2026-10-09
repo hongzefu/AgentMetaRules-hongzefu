@@ -2,5 +2,8 @@
   "env": {
     "CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS": "64",
     "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "64"
+  },
+  "worktree": {
+    "baseRef": "head"
   }
 }
