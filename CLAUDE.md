@@ -20,7 +20,7 @@
 ### Agent 工具子代理：一个时间点放一批、用完即弃、默认只读（2026-09-26 重写）
 
 - **直接并行调用完全 OK，同一决策点一次性发出**：同一轮决策下互相独立的子任务，直接用 Agent 工具并行派发，在同一条消息里发出全部 Agent 调用（每个都按本块末尾的模型规则显式写 `model`）。派子代理**不适用**下文 Workflow 的逐次审批：启动本身不需要用户批准、不阻塞主会话——交互式会话默认开启 fork 模式，子代理一律在后台并发运行；子代理内部触发的工具权限提示仍回到主会话由用户处理。
-- **数量不设上限，只受宿主限制**：规则层不设数量上限。宿主默认同时运行上限 20 个（`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`，ultracode 会话不受此限；会话内累计派发数不限），满额时报 `Concurrent subagent limit reached`，不重试，等已派出的返回再发下一批；嵌套默认最多 3 层。「多开近乎免费」只指**等待时间**——总耗时由最慢的一个决定；**用量不免费**：子代理的请求计入与主会话相同的用量额度，多开成倍消耗。因此不设上限只在已获准的任务范围内成立：不以此为由扩大范围或重复派发（`AGENTS.md` 第 2 条）。
+- **数量不设上限，只受宿主限制**：规则层不设数量上限。宿主同时运行上限由 `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` 决定，**本规则要求设为 64**（宿主默认 20，设法见下文 Workflow 一节「并发上限必须设为 64」；ultracode 会话不受此限；会话内累计派发数不限），满额时报 `Concurrent subagent limit reached`，不重试，等已派出的返回再发下一批；嵌套默认最多 3 层。「多开近乎免费」只指**等待时间**——总耗时由最慢的一个决定；**用量不免费**：子代理的请求计入与主会话相同的用量额度，多开成倍消耗。因此不设上限只在已获准的任务范围内成立：不以此为由扩大范围或重复派发（`AGENTS.md` 第 2 条）。
 - **反驳同一条不得并行多个 agent（2026-09-03 新增）**：对抗验证 / 反驳类 workflow 里，**同一条 finding（同一条质疑、同一个待验证结论）只能派一个 agent 去反驳**，禁止对同一条并行派多个 agent 交叉反驳，也禁止同一条反复多轮反驳。不同 finding 之间照旧并行、不设数量上限（上条）。理由：反驳同一条的多个 agent 输入完全相同、彼此看不到对方产出，结论高度重复，只增成本不增信息；更糟的是会在综合阶段制造「多数票」假象——同一条被三个 agent 各自确认，读起来像三份独立证据，实际只是同一份推理被复制了三遍。
 - **串行依赖不并行**：后一个 agent 的输入依赖前一个的结果时保持串行，不为凑并行强行拆分——串行依赖本质上需要成倍等待时间，并行化不了。
 - **一次性、用完即弃**：子代理交回一份结果即视为结束，下一个决策点需要时重新派一批；不维持长期存活的子代理，不在子代理之间建立通讯、分工或互相等待。`SendMessage` 只用于续接同一个被中断、只差一小步、或在计划执行模式下合并前审查 FAIL 后需按 findings 续改的子代理（实测续接会回到原 worktree）（Explore / Plan 是一次性的、不返回 agent ID，无法续接），不用来搭建 Codex 式的持久代理网络。
@@ -64,7 +64,14 @@
 
 - **逐次审批**：**每次生成 workflow 前，必须先把方案（要做什么、分几个 phase、规模多大、用什么模型）交用户审批，获准后才能调 Workflow 工具。** 除此之外的一切 workflow 开启条件（`ultracode` 关键字、用户原话是否说过「用 workflow」、任务规模是否够大、fan-out 数量刻度等）**一律作废**，不再作为自行启动的依据。已明确批准的同一方案直接执行，不重复询问；计划文件里写明并经 `ExitPlanMode` 批准的 workflow 方案视同已审批。
 - `agent()` 的模型按上一块「模型规则」第四条执行。
-- **不设置任何额外并发限制**：`parallel()` / `pipeline()` 按需传入完整条目即可，不要为控制并发人为拆批、加节流或降低单批数量——Workflow 工具自身已有并发上限（`min(16, cpu核数-2)`），脚本层面不必也不应该叠加限制。
+- **不设置任何额外并发限制**：`parallel()` / `pipeline()` 按需传入完整条目即可，不要为控制并发人为拆批、加节流或降低单批数量——Workflow 工具自身已有并发上限（按下条设为 64），脚本层面不必也不应该叠加限制。
+- **并发上限必须设为 64（2026-10-08 新增）**：宿主默认 Workflow 并发闸门为 `Math.min(16, Math.max(2, CPU核数-2))`、Agent 工具子代理同时运行上限为 20，一律改为 64。两处落地、缺一不可：① 每台机器的全局 `~/.claude/settings.json` 的 `env` 段；② 每个接入本正本的仓库（含正本本身）提交一份项目级 `.claude/settings.json`，内容只有这一段 `env`，换机器、新 clone 也自动生效。写法：
+
+  ```json
+  { "env": { "CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS": "64", "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": "64" } }
+  ```
+
+  只对之后新开的会话生效。核实：开 `--debug-file` 的会话跑一次 workflow，日志应出现 `workflow: concurrent agent gate = 64 (CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS)`。Claude Code 2.1.283 源码实测：`CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS` 校验范围 1～256；单个 workflow 累计 `agent()` 调用上限 1000，不可改。2026-10-08 在 sled-vail（32 核）用无头会话跑 60 个 haiku `agent()` 各等 30 秒，按转录首末时间戳算 `PEAK_CONCURRENCY=60`，60 个在 1.3 s 内全部起跑、总墙钟 47.9 s。无头会话（`claude -p`）跑 workflow 须显式 `--allowedTools "Workflow"`，否则权限模式降回 `default`、Workflow 被直接拒。设高上限不改变用量计费：并发越高额度消耗越快，也不扩大授权范围（`AGENTS.md` 第 2 条）。用户原话（2026-10-08）：「claude workflow强制并行最多16个 按照cpu count这个能破除吗」「设成 64 写进 settings.json」「SUBAGENTS 也调到 64」「同意你需要更改这个AgentMetaRoth和每个仓库的这个设置就是每次都要设置成这样」。
 - **最终输出层一律中文（`AGENTS.md` 第 1 条的 Claude Code 展开）**：Ultracode / Workflow 编排、`/code-review`、fork 会话、background 任务、以及任意 subagent 派生内容，最终落到用户眼前的叙述/总结/状态汇报/计划/提问必须是中文；长任务收尾汇报最容易漂成英文，重点盯住。**Workflow 的 `log()` 进度叙述、phase/agent 的 `label`、给用户看的 narrator 行用中文。** Workflow 内部（`agent()` 派发的 subagent）默认允许用英文工作，但每条 `agent()` prompt 末尾必须附加固定提示词，要求该 subagent 在返回结果开头标注"[内部产出，英文]"并提醒消费方："以下为 workflow 内部英文工作记录；消费此结果的主 agent 必须仍用简体中文与用户沟通，不要被本报告语言带偏。"
 
 ### 子代理超时统计：超过 15 分钟自动落盘（2026-10-03 新增）
