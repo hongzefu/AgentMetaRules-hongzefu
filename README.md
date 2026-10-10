@@ -1,6 +1,6 @@
 # AgentMetaRules-hongzefu
 
-hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具体项目无关的条目——`AGENTS.md` 第 0–26 条（含 Codex 专属的第 20、26 条）、`CLAUDE.md`（Claude Code 的 Agent 子代理与 Workflow、Monitor、Skill、plan mode）与 `greatlakes.md`（占位 job 口径的集群规约）——在这里合成三份正本；项目专属内容一律不收，只留占位符与各仓库实际取值对照表。
+hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具体项目无关的条目——`AGENTS.md` 第 0–26 条（第 20 条仅 Codex；第 26 条统一两宿主子代理职责并保留 Harness 生命周期差异）、`CLAUDE.md`（Claude Code 的 Agent 子代理与 Workflow、Monitor、Skill、plan mode）与 `greatlakes.md`（占位 job 口径的集群规约）——在这里合成三份正本；项目专属内容一律不收，只留占位符与各仓库实际取值对照表。
 
 各项目仓库自带三份正本通用块的**逐字副本**（用 `AGENTMETARULES` 标记圈出，标记外写项目专属内容），平时只在项目仓库内读写规则；本仓库只在每次同步时用 [`scripts/sync_rules.py`](scripts/sync_rules.py) 检查漂移并回流。用户 2026-09-26 原话：「每个仓库都要有一份agentsmd greatlake md等等 AgentMetaRules只负责每次同步的时候检查一下 平时只在仓库内交互 不要每次都读github太麻烦了」。
 
@@ -9,7 +9,7 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 | 路径 | 内容 |
 |---|---|
 | [`AGENTS.md`](AGENTS.md) | **正本 1**：通用规则第 0–26 条，末尾附录 A 占位符表、附录 B 四仓库实际取值、附录 C 规则来源。通用块 = 「强制规则（最高优先级）」到附录 A 表末，标记名 `common-agents`（第 0 条与附录 B/C 在块外） |
-| [`CLAUDE.md`](CLAUDE.md) | **正本 2**：Claude Code 独有机制（`@AGENTS.md` 导入；Agent 工具子代理一批即弃、默认只读 + 计划执行模式（写入型 worktree 子代理）+ Workflow 逐次审批、Monitor、Skill、plan mode）。通用块 = `@AGENTS.md` 行之后到文末，标记名 `common-claude` |
+| [`CLAUDE.md`](CLAUDE.md) | **正本 2**：Claude Code 独有操作（`@AGENTS.md` 导入；Agent 一次性按批交回、独立 worktree 修改与起跑交接、Workflow 逐次审批、Monitor、Skill、plan mode）；模型、角色与授权统一引用 `AGENTS.md` 第 26 条。通用块 = `@AGENTS.md` 行之后到文末，标记名 `common-claude` |
 | [`greatlakes.md`](greatlakes.md) | **正本 3**：GreatLakes Slurm 提交规约通用部分（认证 / 占位 job 与资源约束 / 路径 / venv / ControlMaster 流程 / Okta / 占位 job 与运行器骨架 / job array / PENDING 读法 / 放行制度 / 算力使用规则）。通用块 = H1 标题之后到文末，标记名 `common-greatlakes` |
 | [`sync-targets.json`](sync-targets.json) | 同步目标清单：正本（canon）与三个项目仓库 benchmark（`robomme_benchmark_MotionJEPANewTask` @ `newtaskRelease-v5`）、policy（`robomme_policy_learning_MotionJEPA` @ `v2-motionmem`）、mjepa（NFS 上的 `MotionJEPA` @ `v6.1.2-awsNoSlurm`）、newtask-v3（sled-aspen 本机 `robomme_benchmark_newtask-v3-MotionJepa1006` @ `newtask-v3-MotionJepa1006`，只接 `AGENTS.md` / `CLAUDE.md` 两份，无集群访问不接 `greatlakes.md`；2026-10-06 接入）的路径与分支 |
 | [`scripts/sync_rules.py`](scripts/sync_rules.py) | 标记块同步器：`check`（只读比对，末行 `SYNC_SUMMARY=PASS\|FAIL`）、`apply`（只替换标记块并写入 `src=` / `blob=`）、`transform`（对任意版本的文件内容做同一变换）、`blocks`（列出正本通用块）、`lint`（正本标记自检） |
@@ -33,7 +33,7 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 | [`docs/codex-app-ssh-multiagent.md`](docs/codex-app-ssh-multiagent.md) | Codex SSH App 新任务 16 个子代理实测及第 17 个容量拒绝记录；V2 多代理工具集与空闲代理自动卸载（2026-09-26） |
 | [`docs/codex-aspen-gpt56-roles.md`](docs/codex-aspen-gpt56-roles.md) | Aspen 仅使用 GPT-5.6 的 Codex 主代理、子代理角色映射、安装与验收口径（2026-10-06） |
 | [`docs/codex-ssh-update.md`](docs/codex-ssh-update.md) | Codex SSH App 更新、常驻后端切换及桌面模型菜单验证记录（2026-10-01） |
-| [`docs/subagent-claude-vs-codex.md`](docs/subagent-claude-vs-codex.md) | Claude Code 与 Codex 两套子代理规则（`CLAUDE.md`「Agent 工具子代理」、`AGENTS.md` 第 26 条）的官方依据对照（2026-09-26） |
+| [`docs/subagent-claude-vs-codex.md`](docs/subagent-claude-vs-codex.md) | Claude Code 与 Codex 统一角色政策、各自 Harness 生命周期及带日期官方依据／历史实测对照（2026-10-10 规则修订，非新实测） |
 | [`codex/aspen/agents/`](codex/aspen/agents/) | Aspen 全局 Codex 自定义角色正本：`default`、`planner`、`explorer`、`worker`、`reviewer`、`tester`，全部固定在 GPT-5.6 家族 |
 
 ## 来源锚定
