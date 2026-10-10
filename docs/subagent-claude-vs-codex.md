@@ -139,7 +139,7 @@ Claude Code 的子代理是「一次性、并行、结果回收」模型：每�
    grep -n -A3 '^\[agents\]' ~/.codex/config.toml
    ```
 
-   关注 `max_concurrent_threads_per_session`（本机为 16）。配置能解析不代表容量生效，实际容量按 [`codex-app-ssh-multiagent.md`](codex-app-ssh-multiagent.md) 的复验步骤在新建任务里验收。
+   每次开工检查 `max_concurrent_threads_per_session`，标准值为 32（2026-10-10 用户要求）；缺失或不等于 32 时对齐为 32，保留其它配置并读回确认。配置能解析不代表容量生效；32 个子代理的真实并发尚待新任务验收，不能把历史 16 个子代理的实测当作 32 个的证据。权限受限时报告阻塞，不宣称已对齐。
 
 ## 参考
 

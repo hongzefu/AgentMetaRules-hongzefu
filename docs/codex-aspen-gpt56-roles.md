@@ -34,7 +34,7 @@ project_doc_max_bytes = 131072
 
 [agents]
 enabled = true
-max_concurrent_threads_per_session = 16
+max_concurrent_threads_per_session = 32
 default_subagent_model = "gpt-6-sol"
 default_subagent_reasoning_effort = "high"
 ```
@@ -69,7 +69,7 @@ config = tomllib.loads((root / 'config.toml').read_text())
 assert config['model'] == 'gpt-6.1-sol'
 assert config['model_reasoning_effort'] == 'high'
 assert config['project_doc_max_bytes'] == 131072
-assert config['agents']['max_concurrent_threads_per_session'] == 16
+assert config['agents']['max_concurrent_threads_per_session'] == 32
 assert config['agents']['default_subagent_model'] == 'gpt-6-sol'
 assert config['agents']['default_subagent_reasoning_effort'] == 'high'
 
