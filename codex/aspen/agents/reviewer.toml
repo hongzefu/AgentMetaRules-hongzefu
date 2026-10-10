@@ -1,6 +1,6 @@
 name = "reviewer"
 description = "只读审查代理，优先发现正确性、安全性、回归、边界条件和测试缺口。"
-model = "gpt-5.6-sol"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 developer_instructions = """

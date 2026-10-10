@@ -1,6 +1,6 @@
 name = "explorer"
 description = "只读快速探索代理，负责定位文件、调用链、配置来源、依赖和可复核事实。"
-model = "gpt-5.6-luna"
+model = "gpt-6-luna"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 developer_instructions = """

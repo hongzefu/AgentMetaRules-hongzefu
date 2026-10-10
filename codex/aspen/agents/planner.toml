@@ -1,6 +1,6 @@
 name = "planner"
 description = "只读规划代理，负责高歧义、多阶段任务的方案、依赖、风险与验收设计。"
-model = "gpt-5.6-sol"
+model = "gpt-6.1-sol"
 model_reasoning_effort = "xhigh"
 sandbox_mode = "read-only"
 developer_instructions = """
