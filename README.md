@@ -31,10 +31,10 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 | [`docs/excluded.md`](docs/excluded.md) | 明确不收的项目专属内容（按仓库列） |
 | [`docs/maniskill-multiprocess.md`](docs/maniskill-multiprocess.md) | ManiSkill / robomme 多进程与多 worker 生成的实测经验：`mplib` 墙钟预算导致的不可复现、跨架构不变量、夹爪元素与末段错位陷阱、官方比较器边界、吞吐、容差校验结论（2026-09-22） |
 | [`docs/codex-app-ssh-multiagent.md`](docs/codex-app-ssh-multiagent.md) | Codex SSH App 新任务 16 个子代理实测及第 17 个容量拒绝记录；V2 多代理工具集与空闲代理自动卸载（2026-09-26） |
-| [`docs/codex-aspen-gpt56-roles.md`](docs/codex-aspen-gpt56-roles.md) | Aspen 仅使用 GPT-5.6 的 Codex 主代理、子代理角色映射、安装与验收口径（2026-10-06） |
+| [`docs/codex-aspen-gpt56-roles.md`](docs/codex-aspen-gpt56-roles.md) | Codex 仅允许 GPT-6、GPT-6.1 系列的现行规则与角色映射；历史文件名和旧验收单独保留（2026-10-10 更新） |
 | [`docs/codex-ssh-update.md`](docs/codex-ssh-update.md) | Codex SSH App 更新、常驻后端切换及桌面模型菜单验证记录（2026-10-01） |
 | [`docs/subagent-claude-vs-codex.md`](docs/subagent-claude-vs-codex.md) | Claude Code 与 Codex 两套子代理规则（`CLAUDE.md`「Agent 工具子代理」、`AGENTS.md` 第 26 条）的官方依据对照（2026-09-26） |
-| [`codex/aspen/agents/`](codex/aspen/agents/) | Aspen 全局 Codex 自定义角色正本：`default`、`planner`、`explorer`、`worker`、`reviewer`、`tester`，全部固定在 GPT-5.6 家族 |
+| [`codex/aspen/agents/`](codex/aspen/agents/) | Aspen 六角色配置文件；其中旧 GPT-5.6 绑定已被第 26 条禁止，完成 GPT-6／GPT-6.1 配置迁移与运行时核验前不得加载使用 |
 
 ## 来源锚定
 
