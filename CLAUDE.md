@@ -107,6 +107,7 @@
 - `AGENTS.md` 第 2 条「遇到范围、实现方式或破坏性操作存在歧义必须先询问用户」在 plan mode 下的落地方式是：**在 `ExitPlanMode` 之前用 `AskUserQuestion` 问清，不得带着歧义退出 plan mode。**
 - 计划正文写进 harness 指定的计划文件（`~/.claude/plans/<slug>.md`）；结构（两部分 / 纯文档例外）与细节密度一律按 `AGENTS.md` 第 2 条，本文件不复述。只写推荐方案，不罗列所有备选。用户要求落在仓库根目录的计划交付物按 `AGENTS.md` 第 2 条写成单文件 HTML（不再写 `.md`），图由 `opus` 画图子代理按图并行出内联 SVG。
 - 宿主明确指定的计划文件属于工具管理文件，不作为仓库数据或实验产物，不能借此把缓存、权重或日志写到 `<STORE_ROOT>` 之外；仅在宿主明确允许时写入。
+- **写 HTML 计划不进 plan mode；进 plan mode 前先问用户（2026-10-12 新增）**：用户要的计划交付物是仓库内的 HTML 文件（`AGENTS.md` 第 2 条），而 plan mode 只允许写宿主的 `~/.claude/plans/<slug>.md`、写不了这份交付物，两者冲突。因此用户要求「写计划 / 出计划 / 写 HTML plan」时**直接在普通模式下写 HTML 计划并提交推送**，不调 `EnterPlanMode`；核实事实仍只读（探索子代理、`git show`、grep），写计划文件与画图子代理不算实施。计划呈现后按第 2 条「开工令」等用户对该 HTML 不改而直接认可（「同意」「开工」等）才动手，不用 `ExitPlanMode` 代替。只有用户明确要求使用 plan mode、或 agent 认为需要宿主 plan mode 的只读保护时，才**先问用户一句是否进入 plan mode**，得到同意再调 `EnterPlanMode`；上面两条 `ExitPlanMode` / `AskUserQuestion` 的约束只在真的处于 plan mode 时适用。实测踩坑：2026-10-12 benchmark 仓库在用户说「出个计划」后径自 `EnterPlanMode`，被用户两次叫停（「不要进入plan模式 只画这个图」「让我确认了之后再进入plan模式」），最后用户原话：「写html不要进入plan模式 把这个写入agentmetarules」。
 - plan mode 期间除该计划文件外一律只读：不改代码、不改配置、不 commit、不跑任何有副作用的命令。**在只读阶段把事实核实清楚**——仓库的坑（如 editable 指向、安装顺序、源码来源、已知缺陷）都是只读就能查清的，带着未经核实的假设进入实施阶段代价远高于多花几分钟查证。
 
 <!-- AGENTMETARULES:END common-claude -->
