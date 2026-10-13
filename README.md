@@ -30,6 +30,7 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 | [`docs/merge-decisions.md`](docs/merge-decisions.md) | 四仓库版本冲突与机制取舍（A–R）与口径统一清单 |
 | [`docs/excluded.md`](docs/excluded.md) | 明确不收的项目专属内容（按仓库列） |
 | [`docs/maniskill-multiprocess.md`](docs/maniskill-multiprocess.md) | ManiSkill / robomme 多进程与多 worker 生成的实测经验：`mplib` 墙钟预算导致的不可复现、跨架构不变量、夹爪元素与末段错位陷阱、官方比较器边界、吞吐、容差校验结论（2026-09-22） |
+| [`docs/machine-aws-p4de.md`](docs/machine-aws-p4de.md) | AWS `p4de.24xlarge` 单机（各项目环境 B）的硬件、存储、网络连通性实测，以及 GitHub 必须用 `~/.ssh/id_ed25519_hongzefu`（默认 key 属他人）的落地方式（2026-10-13） |
 | [`docs/codex-app-ssh-multiagent.md`](docs/codex-app-ssh-multiagent.md) | Codex SSH App 新任务 16 个子代理实测及第 17 个容量拒绝记录；V2 多代理工具集与空闲代理自动卸载（2026-09-26） |
 | [`docs/codex-aspen-gpt56-roles.md`](docs/codex-aspen-gpt56-roles.md) | Codex 仅允许 GPT-6、GPT-6.1 系列的现行规则与角色映射；历史文件名和旧验收单独保留（2026-10-10 更新） |
 | [`docs/codex-ssh-update.md`](docs/codex-ssh-update.md) | Codex SSH App 更新、常驻后端切换及桌面模型菜单验证记录（2026-10-01） |
