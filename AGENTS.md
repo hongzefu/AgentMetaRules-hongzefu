@@ -352,6 +352,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
       - **先改正本再回流**：通用条目的任何改动只在正本仓库改，commit 并 push 后再回流——`sync_rules.py check` 只读比对各目标标记块与正本 HEAD 块、报出漂移（末行 `SYNC_SUMMARY=PASS|FAIL`）；`sync_rules.py apply` 只替换标记块内容与标记行里的 sha，不碰标记外内容；目标仓库带着他人在途工作时用 [`scripts/land_rules_commit.py`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/scripts/land_rules_commit.py)（远端侧只含规则文件的 plumbing 提交 + 本地侧合并提交，见第 11 条 push 例外）。回流提交同时更新项目「规则来源」段的 sha。脚本按第 3 条经 `uv run --no-project python` 运行。
       - **项目副本只改标记外内容**：标记块内禁止手改；在项目里发现正本需要修改时，回正本仓库改正本再 `apply`，不在副本里先改后补。项目对正本的偏离一律写成标记外的按条号覆盖项。
       - `apply` 写的是别的仓库：只写 `sync-targets.json` 登记的文件；目标工作区的在途改动、暂存、提交与推送按目标仓库自己的第 11 条口径（含声明式例外）处理。
+      - **每次开工核对同步（2026-10-14 新增）**：每次会话开工时，把正本 HEAD 与本机各仓库标记块的 `src=` 逐一比对（只读，可直接做）。有落后的列成清单交用户：仓库、分支、文件、落后几个 commit、块内容是否真的变了、工作区是否干净、是否处于冻结期（第 12 条打包冻结、计划写明的不 commit 期）。**用户批准后**才 `apply`、commit、push；处在冻结期的仓库不在冻结 HEAD 上提交，改为切独立 worktree 分支完成回流、冻结结束后再合并，并把待合并事项写进该仓库计划或进度文件。`sync-targets.json` 登记的路径在当前机器上不存在时（例如换了机器），自己扫工作盘下带 `AGENTMETARULES:BEGIN` 的文件，不得因此跳过核对。用户原话（2026-10-14）：「以后你每次都同步」「告诉我你要更新哪几个仓库 我批准后再更新」「这个也要写入agentmetarules」。
 
     来源：benchmark 日志 2026-09-09（拆分口径、编号取舍、脚本搬运）；evalgl/AGENTS.md「规则来源」；mjepa/AGENTS.md 前言；2026-09-26 用户要求「每个仓库都要有一份agentsmd greatlake md等等 AgentMetaRules只负责每次同步的时候检查一下 平时只在仓库内交互 不要每次都读github太麻烦了」（标记块同步机制）。
 
