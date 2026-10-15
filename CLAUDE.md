@@ -8,10 +8,10 @@
 
 ## 规则来源与优先级
 
-- `AGENTS.md` 是通用规则的唯一来源（第 0–26 条；仅第 20 条只对 Codex 生效，Claude Code 忽略；第 26 条统一两宿主子代理职责，宿主专节各自执行）。上面的 `@AGENTS.md` 会把它的正文内联进上下文。
+- `AGENTS.md` 是通用规则的唯一来源（第 0–27 条；仅第 20 条只对 Codex 生效，Claude Code 忽略；第 26 条统一两宿主子代理职责，宿主专节各自执行）。上面的 `@AGENTS.md` 会把它的正文内联进上下文。
 - **即便该导入失效，动手前也必须先完整读一遍 `AGENTS.md`。** 官方文档（2026-09-26 核实 code.claude.com/docs/en/memory）：工作目录或其上级存在 `CLAUDE.md` / `CLAUDE.local.md` 时，Claude Code 只读 `CLAUDE.md` 系文件、**不再自动读 `AGENTS.md`**——没有本文件的显式 `@AGENTS.md` 导入，`AGENTS.md` 不会进入会话上下文（早期实测于 Claude Code 2.1.232 时 memory 发现列表根本不含 `AGENTS.md`）。这一条是兜底，不可省略。
 - **动手前必须先按 `AGENTS.md` 第 0 条做运行环境判定**，并在当轮第一条回复里写明结论是环境 A 还是环境 B；判据矛盾或出现第三套硬件时按该条冲突即停。
-- 本文件只补 `AGENTS.md` 覆盖不到的 Claude Code 独有机制，共四块：Workflow 与 Agent 模型、Monitor 工具、Skill 调用、plan mode 与计划文件。两份文件的分工、冲突处理（一律以 `AGENTS.md` 为准）与跨宿主中立见 `AGENTS.md` 第 25 条。
+- 本文件只补 `AGENTS.md` 覆盖不到的 Claude Code 独有机制，共五块：Workflow 与 Agent 模型、Monitor 工具、会话交接、Skill 调用、plan mode 与计划文件。两份文件的分工、冲突处理（一律以 `AGENTS.md` 为准）与跨宿主中立见 `AGENTS.md` 第 25 条。
 
 ## Workflow 与 Agent 模型（强制）
 
@@ -93,6 +93,15 @@
 6. `AGENTS.md` 第 7 条禁止裸 `pgrep -f` 判断存活，这条禁令**在 Monitor 里尤其致命**：pattern 字符串就写在 Monitor 自己那个 `bash -c` 的 argv 里，pgrep 永远匹配到自己 → 条件恒真 → 永远「看起来还在跑」。替代写法（括号技巧、`tmux has-session -t '=名'`、启动时 `$!` 记下的 PID）见第 7 条。
 7. **静默空转作业**（`AGENTS.md` 第 23 条）：进程活着却永不产出、日志里也不会出现任何错误行，Monitor 的过滤器必须同时覆盖项目 `CLAUDE.md` 写明的缺陷特征字符串，不能只盯 `EXIT_CODE=`。
 8. Monitor 不可用时使用当前宿主支持的等待或输出通知机制，明确监听能力的限制；不声称不存在的工具已经挂载，也不让工具缺失阻止其他已授权工作。
+
+## 会话交接（`AGENTS.md` 第 27 条的 Claude Code 落地）
+
+- **开工第一条回复固定包含**：运行环境判定结论、`HANDOFF_READ=…` 判定行、接手摘要（自己任务的 `depends_on` 状态、`pending_decisions`、`next_steps` 第一条）。读到 `next_steps` 不等于开工令。
+- **收尾最后一条回复固定包含**：`handoff:` commit sha、`HANDOFF_WRITE=…` 判定行、给下一会话转发的一句话「读 `docs/handoff/current.json`，从 `<sha>` 接续」。
+- **句柄与 Monitor 绑定**：写进 `running_handles` / `long_tail` 的每份日志，在本会话里都必须已按 Monitor 节挂过监听；会话结束监听随之消失，下一会话按文件重新挂。
+- **会话标识**：`owner.session` 填本会话的 `Claude-Session:` 链接（宿主在会话内可见，也是 commit trailer 的来源）。
+- **auto-memory 只留指针**：不把任务状态写进 memory 文件，只写一行「状态看 `docs/handoff/current.json`」。
+- **本轮不挂 hook**：`SessionStart` 注入接手摘要、`SessionEnd` 记录退出状态的自动化未实测，暂不写进规则；读写都由会话按第 27 条手动完成。
 
 ## Skill 调用
 
