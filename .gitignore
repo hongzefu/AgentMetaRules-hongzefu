@@ -1,2 +1,4 @@
 __pycache__/
 *.pyc
+# 子代理 / 会话 worktree（EnterWorktree、isolation: worktree），避免 sync_rules.py check 判正本工作树不干净
+.claude/worktrees/
