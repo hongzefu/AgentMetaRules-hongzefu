@@ -36,10 +36,6 @@
         {"name": "eval-ood", "path": null},
         {"name": "policy", "path": "/scratch/hongze/robomme_policy_learning_MotionJEPA", "branch": "v2-motionmem"},
         {"name": "mjepa", "path": "/scratch/hongze/MotionJEPA", "branch": "v7.0-mixed8"},
-        {"name": "mjepa-backup", "path": "/scratch/hongze/MotionJEPA-backup", "branch": "dev/mixed8-freeze",
-         "remote": "https://github.com/hongzefu/MotionJEPA.git",
-         "_comment": "MotionJEPA 第二份检出（冻结期开发副本分支），只在本机存在",
-         "files": {"AGENTS.md": "common-agents", "CLAUDE.md": "common-claude", "greatlakes.md": "common-greatlakes"}},
         {"name": "newtask-v3", "path": "/scratch/hongze/robomme_benchmark_newtask-v3-MotionJepa1006"},
         {"name": "global-claude", "path": "/home/ec2-user/.claude-personal"}
       ]
