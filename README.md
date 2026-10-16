@@ -1,6 +1,6 @@
 # AgentMetaRules-hongzefu
 
-hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具体项目无关的条目——`AGENTS.md` 第 0–27 条（第 20 条仅 Codex；第 26 条统一两宿主子代理职责并保留 Harness 生命周期差异）、`CLAUDE.md`（Claude Code 的 Agent 子代理与 Workflow、Monitor、Skill、plan mode）与 `greatlakes.md`（占位 job 口径的集群规约）——在这里合成三份正本；项目专属内容一律不收，只留占位符与各仓库实际取值对照表。
+hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具体项目无关的条目——`AGENTS.md` 第 0–27 条（第 20 条仅 Codex；第 26 条统一两宿主子代理职责并保留 Harness 生命周期差异）、`CLAUDE.md`（Claude Code 的 Agent 子代理与 Workflow、Monitor、Skill、plan mode）与 `greatlakes.md`（占位 job 口径的集群规约）——在这里合成三份正本，外加各机器全局 `CLAUDE.md` 摘录块的正本 `CLAUDE.global.md`（2026-10-16 起，第 4 份）；项目专属内容一律不收，只留占位符与各仓库实际取值对照表。
 
 各项目仓库自带三份正本通用块的**逐字副本**（用 `AGENTMETARULES` 标记圈出，标记外写项目专属内容），平时只在项目仓库内读写规则；本仓库只在每次同步时用 [`scripts/sync_rules.py`](scripts/sync_rules.py) 检查漂移并回流。用户 2026-09-26 原话：「每个仓库都要有一份agentsmd greatlake md等等 AgentMetaRules只负责每次同步的时候检查一下 平时只在仓库内交互 不要每次都读github太麻烦了」。
 
@@ -11,8 +11,9 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 | [`AGENTS.md`](AGENTS.md) | **正本 1**：通用规则第 0–26 条，末尾附录 A 占位符表、附录 B 四仓库实际取值、附录 C 规则来源。通用块 = 「强制规则（最高优先级）」到附录 A 表末，标记名 `common-agents`（第 0 条与附录 B/C 在块外） |
 | [`CLAUDE.md`](CLAUDE.md) | **正本 2**：Claude Code 独有操作（`@AGENTS.md` 导入；Agent 一次性按批交回、独立 worktree 修改与起跑交接、Workflow 逐次审批、Monitor、会话交接、Skill、plan mode）；模型、角色与授权统一引用 `AGENTS.md` 第 26 条。通用块 = `@AGENTS.md` 行之后到文末，标记名 `common-claude` |
 | [`greatlakes.md`](greatlakes.md) | **正本 3**：GreatLakes Slurm 提交规约通用部分（认证 / 占位 job 与资源约束 / 路径 / venv / ControlMaster 流程 / Okta / 占位 job 与运行器骨架 / job array / PENDING 读法 / 放行制度 / 算力使用规则）。通用块 = H1 标题之后到文末，标记名 `common-greatlakes` |
-| [`sync-targets.json`](sync-targets.json) | 同步目标清单：正本（canon）与三个项目仓库 benchmark（`robomme_benchmark_MotionJEPANewTask` @ `newtaskRelease-v5`）、policy（`robomme_policy_learning_MotionJEPA` @ `v2-motionmem`）、mjepa（NFS 上的 `MotionJEPA` @ `v6.1.2-awsNoSlurm`）、newtask-v3（sled-aspen 本机 `robomme_benchmark_newtask-v3-MotionJepa1006` @ `newtask-v3-MotionJepa1006`，只接 `AGENTS.md` / `CLAUDE.md` 两份，无集群访问不接 `greatlakes.md`；2026-10-06 接入）的路径与分支 |
-| [`scripts/sync_rules.py`](scripts/sync_rules.py) | 标记块同步器：`check`（只读比对，末行 `SYNC_SUMMARY=PASS\|FAIL`）、`apply`（只替换标记块并写入 `src=` / `blob=`）、`transform`（对任意版本的文件内容做同一变换）、`blocks`（列出正本通用块）、`lint`（正本标记自检） |
+| [`CLAUDE.global.md`](CLAUDE.global.md) | **正本 4**（2026-10-16）：各机器全局 `CLAUDE.md`（`$CLAUDE_CONFIG_DIR/CLAUDE.md`）里 `common-global` 块的正本——第 1、3、7、11、26 条与 `CLAUDE.md` Agent／Monitor 节的自包含摘录（语言、子代理派发政策、uv、tmux、Monitor、git 纪律），给未接入正本的目录兜底；改被摘录的条目时同一 commit 同步改它。通用块 = 文件内唯一标记对，标记名 `common-global`；目标名 `global-claude` |
+| [`sync-targets.json`](sync-targets.json) | 同步目标清单：正本（canon）与三个项目仓库 benchmark（`robomme_benchmark_MotionJEPANewTask` @ `newtaskRelease-v5`）、policy（`robomme_policy_learning_MotionJEPA` @ `v2-motionmem`）、mjepa（NFS 上的 `MotionJEPA` @ `v6.1.2-awsNoSlurm`）、newtask-v3（sled-aspen 本机 `robomme_benchmark_newtask-v3-MotionJepa1006` @ `newtask-v3-MotionJepa1006`，只接 `AGENTS.md` / `CLAUDE.md` 两份，无集群访问不接 `greatlakes.md`；2026-10-06 接入）的路径与分支；2026-10-16 起另有 `global-claude`（本机全局 `CLAUDE.md`，路径 `$CLAUDE_CONFIG_DIR`，只接 `common-global`）与顶层 `machines` 段（按 `hostname` 最长前缀选用，按目标名覆盖 `canon` 与各目标 `path`／`branch`、登记机器专属目标、`path: null` 删除本机没有的目标；AWS p4de `ip-10-242-11-177` 已登记：四个 `/scratch/hongze` 检出 + `~/.claude-personal`） |
+| [`scripts/sync_rules.py`](scripts/sync_rules.py) | 标记块同步器：`check`（只读比对，末行 `SYNC_SUMMARY=PASS\|FAIL`）、`apply`（只替换标记块并写入 `src=` / `blob=`）、`transform`（对任意版本的文件内容做同一变换）、`blocks`（列出正本通用块）、`lint`（正本标记自检）；块名四个（含 `common-global`），路径支持 `~` 与 `$VAR`（`CLAUDE_CONFIG_DIR` 未设时取 `~/.claude`），`MACHINE=` 判定行报本机选用的 `machines` 键，`AGENTMETARULES_MACHINE=<键>` 可强制 |
 | [`scripts/land_rules_commit.py`](scripts/land_rules_commit.py) | 把规则同步落到带在途工作的仓库：远端侧用 git plumbing 生成只含规则文件的提交，本地侧做合并提交，不暂存、不覆盖在途改动 |
 | [`scripts/rehearse_land.sh`](scripts/rehearse_land.sh) | `land_rules_commit.py` 的落地演练脚本（先演练、再真落地） |
 | [`scripts/onboard/`](scripts/onboard/) | 首次接入夹具：每个仓库一份 `<repo>.json` 与 head/tail 夹具，按稳定锚点切出标记块位置；写法见目录内 README |
@@ -25,7 +26,8 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 | [`templates/run_in_hold.sh`](templates/run_in_hold.sh) | 经 `srun --jobid --overlap --exact` 塞进占位 job 的运行器骨架：计算节点判定 fail-fast + 日志三件套 + `trap cleanup EXIT` + `EXIT_CODE=` |
 | [`templates/run_long_task.sh`](templates/run_long_task.sh) | detached tmux + 日志三件套 + `EXIT_CODE=` |
 | [`templates/monitor_filter.sh`](templates/monitor_filter.sh) | Monitor 行缓冲过滤管道 |
-| [`templates/CLAUDE.global.macbook.md`](templates/CLAUDE.global.macbook.md) | MacBook 单机全局 `~/.claude/CLAUDE.md` 版本：中文沟通 + 从第 3、7 条与 Monitor 节摘出的 uv / tmux / Monitor 本机规则（自包含、不 `@` 导入，符合下文 2026-09-27 约定）；本机需 `brew install tmux` |
+| [`templates/CLAUDE.global.md`](templates/CLAUDE.global.md) | 新机器全局 `CLAUDE.md` 骨架（2026-10-16）：「本机专属」占位清单 + `common-global` 空标记块；复制到 `$CLAUDE_CONFIG_DIR/CLAUDE.md`，填本机专属后 `apply --repo global-claude` |
+| [`templates/CLAUDE.global.macbook.md`](templates/CLAUDE.global.macbook.md) | MacBook 全局 `~/.claude/CLAUDE.md` 骨架：macOS 单机、无集群、`brew install tmux` 等本机专属 + `common-global` 空标记块（2026-10-16 改为标记块接入；此前自包含抄录的 uv / tmux / Monitor 三块已并入 `CLAUDE.global.md`） |
 | [`docs/sources.md`](docs/sources.md) | 溯源：每条规则来自哪个仓库的哪一节；日期沿革表 |
 | [`docs/merge-decisions.md`](docs/merge-decisions.md) | 四仓库版本冲突与机制取舍（A–R）与口径统一清单 |
 | [`docs/excluded.md`](docs/excluded.md) | 明确不收的项目专属内容（按仓库列） |
@@ -62,16 +64,22 @@ hongzefu 名下所有仓库通用 agent 工作规则的**单一真源**。与具
 2. 在 [`sync-targets.json`](sync-targets.json) 登记该仓库（名称、路径、分支），并写 `scripts/onboard/<repo>.json` 夹具（按稳定锚点指明三份文件的标记块位置，写法见 [`scripts/onboard/`](scripts/onboard/) 内 README）。
 3. 在本仓库根目录运行 `uv run --no-project python scripts/sync_rules.py apply --repo <name> --onboard scripts/onboard`，把三份通用块填进标记对（BEGIN 行写入 `src=<正本 sha> blob=<块 blob>`）；再跑 `uv run --no-project python scripts/sync_rules.py check --repo <name>`，末行 `SYNC_SUMMARY=PASS` 后按项目自己的第 11 条口径提交（只逐个 `git add` 这三份规则文件）。
 
+## 接入新机器（三步，2026-10-16）
+
+1. 把本仓库 clone 到本机工作盘；在 [`sync-targets.json`](sync-targets.json) 顶层 `machines` 段用 `hostname` 前缀登记本机：`canon.path`、各目标在本机的 `path`／`branch`（本机没有的目标写 `path: null`，机器专属检出按完整目标格式追加），`global-claude` 的 `path` 写本机 Claude Code 配置目录；commit + push。`uv run --no-project python scripts/sync_rules.py check` 的首行 `MACHINE=<键>` 应等于刚登记的键。
+2. 复制 [`templates/CLAUDE.global.md`](templates/CLAUDE.global.md)（MacBook 用 [`templates/CLAUDE.global.macbook.md`](templates/CLAUDE.global.macbook.md)）到 `$CLAUDE_CONFIG_DIR/CLAUDE.md`，填「本机专属」；已有全局文件则把原内容整理进「本机专属」、追加空标记块。然后 `uv run --no-project python scripts/sync_rules.py apply --repo global-claude`，再 `check --repo global-claude` 看 `SYNC_SUMMARY=PASS`。
+3. 全局 `settings.json` 按 [`CLAUDE.md`](CLAUDE.md)「Workflow」节写入两个并发变量与 `worktree.baseRef: "head"`，按「子代理超时统计」节挂 `SubagentStop` hook（命令里的正本路径改成本机 clone）；有集群访问的机器再装 `skills/greatlakes-usage/`。
+
 ## 维护规则
 
 - **改正本先改这里，再回流各项目仓库**，顺序固定：
-  1. 在本仓库改正本，`git commit` + `git push`；
+  1. 先在本机正本 clone `git fetch origin` 并把 `main` 快进到 `origin/main`（不能快进即停下报用户），再在本仓库改正本，`git commit` + `git push`；
   2. `uv run --no-project python scripts/sync_rules.py check --repo <name>` 逐个目标只读比对，报出哪些仓库的标记块漂移；
   3. `apply --repo <name>` 回流——只替换标记块、写入新的 `src=` / `blob=`，标记外的项目内容不动；目标仓库有在途工作时改用 [`scripts/land_rules_commit.py`](scripts/land_rules_commit.py)（远端侧 plumbing 提交 + 本地侧合并提交）。回流只提交这次改到的规则文件，其他文件都不动（用户 2026-09-26 原话：「是否可以只推这次修改的md 其他的都不动？精确按照文件来」）；
   4. 回流 commit 即更新项目「规则来源」段的 sha（BEGIN 行的 `src=`），不再另写「引用 commit」。
 - 正本条目**只增不重编号**（第 25 条）；项目里长出的新通用条目（带日期标注与实测出处）回收进正本时，逐字搬运、只改专有名词，并在 [`docs/sources.md`](docs/sources.md) 补一行来源。
 - `~/.claude/greatlakes.md` 与 `~/.claude/skills/greatlakes-usage/` 是本仓库对应文件的副本，正本更新后重新同步：`cp greatlakes.md ~/.claude/greatlakes.md`、`cp -r skills/greatlakes-usage ~/.claude/skills/`。
-- 全局 `~/.claude/CLAUDE.md` **不再** `@` 导入本仓库（2026-09-27 撤掉；2026-09-26 曾改为两行 `@` 导入，2026-09-18 曾决定不提供全局替换版）。原因：正本与项目标记块是同一份内容，双份注入使每个会话启动即多占约 30k token（MotionJEPA 实测启动注入 139k 字 → 78k 字）。会话里生效的只有项目仓库内的标记块副本；未接入的目录先按第 25 条用 `sync_rules.py` 接入。全局文件只保留「本机专属」一节。**不得再把 `@` 导入加回全局文件。**旧版（2026-09-01）「greatlakes 集群」一节的过期提交器路径与权威源指向随之失效（见 [`docs/merge-decisions.md`](docs/merge-decisions.md) C、D 两项）。
+- 全局 `~/.claude/CLAUDE.md` **不再** `@` 导入本仓库（2026-09-27 撤掉；2026-09-26 曾改为两行 `@` 导入，2026-09-18 曾决定不提供全局替换版）。原因：正本与项目标记块是同一份内容，双份注入使每个会话启动即多占约 30k token（MotionJEPA 实测启动注入 139k 字 → 78k 字）。会话里生效的只有项目仓库内的标记块副本；未接入的目录先按第 25 条用 `sync_rules.py` 接入。全局文件 = 标记外的「本机专属」一节 + `common-global` 标记块（正本 `CLAUDE.global.md`，自包含摘录；2026-10-16 起，目标名 `global-claude`，每次开工核对同步时与仓库一并 `check`／`apply`，机制见 `AGENTS.md` 第 25 条「全局配置也是回流目标」）。**不得再把 `@` 导入加回全局文件。**旧版（2026-09-01）「greatlakes 集群」一节的过期提交器路径与权威源指向随之失效（见 [`docs/merge-decisions.md`](docs/merge-decisions.md) C、D 两项）。
 - Codex 侧：`~/.codex/AGENTS.md` 指向本仓库 `AGENTS.md`；`~/.codex/config.toml` 设 `project_doc_max_bytes = 131072`——Codex 默认只读 `AGENTS.md` 前 32 KiB，正本与各项目副本都已超过，不调大会静默丢掉后半截规则（见 [`docs/merge-decisions.md`](docs/merge-decisions.md) P）。
 - Aspen Codex 角色：本仓库 `codex/aspen/agents/*.toml` 是正本，安装时逐个复制为 `~/.codex/agents/*.toml` 普通文件；`~/.codex/config.toml` 的主模型与 `[agents]` 默认值按 [`docs/codex-aspen-gpt56-roles.md`](docs/codex-aspen-gpt56-roles.md) 固定。2026-10-06 实测仓库外符号链接不会注册为可用角色，因此正本更新后必须重新复制并运行逐文件哈希与运行时验收。
 

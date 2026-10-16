@@ -16,7 +16,11 @@
 - 项目副本（目标）：``<!-- AGENTMETARULES:BEGIN <块名> src=<40hex> blob=<40hex> -->``，END 行带同样的属性
   （由常量 END_CARRIES_ATTRS 控制；解析时 END 不带属性也接受，但带了就必须与 BEGIN 完全一致）。
   src = 生成副本时的正本 commit 全 sha；blob = 块内容字节的 git blob id。
-- 块名固定三个：common-agents / common-claude / common-greatlakes；文件与块名的对应只由 sync-targets.json 决定。
+- 块名固定四个：common-agents / common-claude / common-greatlakes / common-global（各机器全局 CLAUDE.md 的摘录块）；
+  文件与块名的对应只由 sync-targets.json 决定。
+- sync-targets.json 顶层可带 ``machines.<主机名前缀>`` 段：按目标名覆盖 canon 与各目标的 path / branch、追加机器专属目标、
+  或以 ``path: null`` 标记本机没有的目标；按 hostname 最长前缀选用，``AGENTMETARULES_MACHINE=<键>`` 可强制。
+  路径支持 ``~`` 与 ``$VAR``（``CLAUDE_CONFIG_DIR`` 未设置时取 ``~/.claude``）。
 - 标记必须整行、从第 0 列开始；以 ``<!-- AGENTMETARULES:`` 开头但不符合正则的行一律判 FAIL。
 - 解析时跟踪 Markdown 代码围栏（行首 ``` 或 ~~~，允许缩进），围栏内的标记原文不算标记；
   但块内容里（含围栏内）不允许出现以 ``<!-- AGENTMETARULES:`` 开头的行。
@@ -51,6 +55,7 @@ import hashlib
 import json
 import os
 import re
+import socket
 import stat
 import subprocess
 import sys
@@ -92,14 +97,14 @@ __all__ = [
 # ---------------------------------------------------------------------------
 
 #: 允许的块名（固定三个）。
-BLOCK_NAMES = ("common-agents", "common-claude", "common-greatlakes")
+BLOCK_NAMES = ("common-agents", "common-claude", "common-greatlakes", "common-global")
 
 #: 所有标记行共同的前缀；以它开头却不符合 MARKER_RE 的行一律判 FAIL。
 MARKER_PREFIX = b"<!-- AGENTMETARULES:"
 
 #: 标记行正则（对不含 \n 的整行做 fullmatch，等价于 ^...$ 从第 0 列匹配）。
 MARKER_RE = re.compile(
-    rb"<!-- AGENTMETARULES:(BEGIN|END) (common-agents|common-claude|common-greatlakes)"
+    rb"<!-- AGENTMETARULES:(BEGIN|END) (common-agents|common-claude|common-greatlakes|common-global)"
     rb"(?: src=([0-9a-f]{40}) blob=([0-9a-f]{40}))? -->"
 )
 
@@ -641,6 +646,7 @@ class Config:
     canon_files: Dict[str, str]  # 正本文件名 -> 块名
     block_to_file: Dict[str, str]  # 块名 -> 正本文件名
     targets: List[Target]
+    machine: Optional[str] = None  # 选用的 machines 段键；None = 本机未登记或无 machines 段
 
     def target(self, name: str) -> Target:
         for t in self.targets:
@@ -666,6 +672,91 @@ def _check_files_map(obj, where: str) -> Dict[str, str]:
     return dict(obj)
 
 
+_ENV_REF_RE = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)")
+
+
+def _expand_path(p: str) -> str:
+    """展开路径里的 ``~`` 与 ``$VAR`` / ``${VAR}``。
+
+    ``CLAUDE_CONFIG_DIR`` 未设置时按 Claude Code 默认取 ``~/.claude``；其他未设置的变量报 config_invalid，不静默留空。
+    """
+    env = dict(os.environ)
+    env.setdefault("CLAUDE_CONFIG_DIR", os.path.join(os.path.expanduser("~"), ".claude"))
+
+    def sub(m):
+        name = m.group(1) or m.group(2)
+        if name not in env:
+            raise _cfg_fail(f"路径 {p!r} 引用了未设置的环境变量 ${name}")
+        return env[name]
+
+    return os.path.expanduser(_ENV_REF_RE.sub(sub, p))
+
+
+def _machine_key(machines: Dict[str, object]) -> Optional[str]:
+    """选用 machines 段的键：``AGENTMETARULES_MACHINE`` 强制指定；否则取与 hostname 相等或为其前缀的最长键；都没有返回 None。"""
+    keys = [k for k in machines if not str(k).startswith("_")]
+    forced = os.environ.get("AGENTMETARULES_MACHINE")
+    if forced:
+        if forced not in keys:
+            raise _cfg_fail(f"AGENTMETARULES_MACHINE={forced!r} 不在 machines 里（可选：{keys}）")
+        return forced
+    host = socket.gethostname()
+    hits = [k for k in keys if host == k or host.startswith(k)]
+    return max(hits, key=len) if hits else None
+
+
+def _apply_machine_overrides(raw: dict, canon: dict, targets_raw: list) -> Optional[str]:
+    """把本机对应的 ``machines.<键>`` 段合并进 canon 与 targets_raw（就地修改），返回选用的键。
+
+    无 machines 段或本机未登记返回 None、不改任何东西。覆盖项按目标名合并：已有目标只覆盖给出的字段；
+    新名字追加为机器专属目标（须自带 path 与 files）；``path: null`` 表示本机没有该目标、从清单里删掉。
+    以 ``_`` 开头的键是注释。
+    """
+    machines = raw.get("machines")
+    if machines is None:
+        return None
+    if not isinstance(machines, dict):
+        raise _cfg_fail("machines 必须是对象（主机名前缀 → 覆盖项）")
+    key = _machine_key(machines)
+    if key is None:
+        return None
+    m = machines[key]
+    where = f"machines[{key!r}]"
+    if not isinstance(m, dict):
+        raise _cfg_fail(f"{where} 必须是对象")
+    unknown = [k for k in m if k not in ("canon", "targets") and not str(k).startswith("_")]
+    if unknown:
+        raise _cfg_fail(f"{where} 有未知字段 {unknown}")
+    c = m.get("canon")
+    if c is not None:
+        if not isinstance(c, dict) or any(k not in ("path", "branch") and not str(k).startswith("_") for k in c):
+            raise _cfg_fail(f"{where}.canon 只允许 path / branch")
+        canon.update({k: v for k, v in c.items() if not str(k).startswith("_")})
+    overrides = m.get("targets") or []
+    if not isinstance(overrides, list):
+        raise _cfg_fail(f"{where}.targets 必须是数组")
+    allowed = ("name", "path", "branch", "remote", "files", "ledger_anchor")
+    for j, ov in enumerate(overrides):
+        w = f"{where}.targets[{j}]"
+        if not isinstance(ov, dict) or not isinstance(ov.get("name"), str) or not ov["name"]:
+            raise _cfg_fail(f"{w} 必须是带 name 的对象")
+        extra = [k for k in ov if k not in allowed and not str(k).startswith("_")]
+        if extra:
+            raise _cfg_fail(f"{w} 有未知字段 {extra}")
+        fields = {k: v for k, v in ov.items() if not str(k).startswith("_")}
+        idx = next((i for i, t in enumerate(targets_raw) if isinstance(t, dict) and t.get("name") == fields["name"]), None)
+        if "path" in fields and fields["path"] is None:
+            if idx is None:
+                raise _cfg_fail(f"{w} 用 path=null 删除的目标 {fields['name']!r} 不存在")
+            del targets_raw[idx]
+            continue
+        if idx is None:
+            targets_raw.append(fields)
+        else:
+            targets_raw[idx].update(fields)
+    return key
+
+
 def load_config(path: str) -> Config:
     """加载并校验 sync-targets.json。"""
     try:
@@ -677,7 +768,9 @@ def load_config(path: str) -> Config:
         raise _cfg_fail(f"{path} 解析失败：{exc}")
     if not isinstance(raw, dict) or not isinstance(raw.get("canon"), dict) or not isinstance(raw.get("targets"), list):
         raise _cfg_fail("顶层必须含 canon（对象）与 targets（数组）")
-    canon = raw["canon"]
+    canon = dict(raw["canon"])
+    targets_raw = [dict(t) if isinstance(t, dict) else t for t in raw["targets"]]
+    machine = _apply_machine_overrides(raw, canon, targets_raw)
     for key in ("path", "branch"):
         if not isinstance(canon.get(key), str) or not canon[key]:
             raise _cfg_fail(f"canon.{key} 必须是非空字符串")
@@ -685,7 +778,7 @@ def load_config(path: str) -> Config:
     block_to_file = {v: k for k, v in canon_files.items()}
     targets: List[Target] = []
     seen = set()
-    for i, t in enumerate(raw["targets"]):
+    for i, t in enumerate(targets_raw):
         where = f"targets[{i}]"
         if not isinstance(t, dict):
             raise _cfg_fail(f"{where} 必须是对象")
@@ -707,8 +800,8 @@ def load_config(path: str) -> Config:
                 raise _cfg_fail(f"{where}.ledger_anchor 的文件 {f!r} 不在 files 里")
             if not isinstance(a, str) or not a or "\n" in a or "\r" in a:
                 raise _cfg_fail(f"{where}.ledger_anchor[{f!r}] 必须是非空单行字符串")
-        targets.append(Target(name, t["path"], t.get("branch"), t.get("remote"), files, dict(anchors)))
-    return Config(os.path.abspath(path), canon["path"], canon["branch"], canon_files, block_to_file, targets)
+        targets.append(Target(name, _expand_path(t["path"]), t.get("branch"), t.get("remote"), files, dict(anchors)))
+    return Config(os.path.abspath(path), _expand_path(canon["path"]), canon["branch"], canon_files, block_to_file, targets, machine)
 
 
 def load_onboard_spec(fixture_dir: str, repo: str, file: str) -> Optional[dict]:
@@ -1006,6 +1099,7 @@ def _note(msg: str) -> None:
 def _open_canon(cfg: Config, args, emit, *, need_clean: bool) -> Optional[Canon]:
     """解析正本版本（必要时检查工作树干净），打印 CANON 判定行；失败返回 None。"""
     canon = Canon(cfg, getattr(args, "canon_rev", None))
+    emit(f"MACHINE={cfg.machine or '-'} host={socket.gethostname()} targets={len(cfg.targets)}")
     try:
         canon.resolve()
     except SyncError as exc:

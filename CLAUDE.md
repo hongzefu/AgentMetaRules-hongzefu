@@ -12,6 +12,7 @@
 - **即便该导入失效，动手前也必须先完整读一遍 `AGENTS.md`。** 官方文档（2026-09-26 核实 code.claude.com/docs/en/memory）：工作目录或其上级存在 `CLAUDE.md` / `CLAUDE.local.md` 时，Claude Code 只读 `CLAUDE.md` 系文件、**不再自动读 `AGENTS.md`**——没有本文件的显式 `@AGENTS.md` 导入，`AGENTS.md` 不会进入会话上下文（早期实测于 Claude Code 2.1.232 时 memory 发现列表根本不含 `AGENTS.md`）。这一条是兜底，不可省略。
 - **动手前必须先按 `AGENTS.md` 第 0 条做运行环境判定**，并在当轮第一条回复里写明结论是环境 A 还是环境 B；判据矛盾或出现第三套硬件时按该条冲突即停。
 - 本文件只补 `AGENTS.md` 覆盖不到的 Claude Code 独有机制，共五块：Workflow 与 Agent 模型、Monitor 工具、会话交接、Skill 调用、plan mode 与计划文件。两份文件的分工、冲突处理（一律以 `AGENTS.md` 为准）与跨宿主中立见 `AGENTS.md` 第 25 条。
+- 本机全局 `CLAUDE.md`（`$CLAUDE_CONFIG_DIR/CLAUDE.md`，默认 `~/.claude/CLAUDE.md`）里的 `common-global` 标记块是本文件「Workflow 与 Agent 模型」「Monitor 工具」与 `AGENTS.md` 第 1、3、7、11、26 条的自包含摘录（正本 `CLAUDE.global.md`，机制见 `AGENTS.md` 第 25 条「全局配置也是回流目标」，2026-10-16），用于未接入正本的目录；在接入的仓库里以本文件与 `AGENTS.md` 为准，两者冲突按仓库内规则执行。改本文件 Agent／Monitor 节时同一 commit 里同步改 `CLAUDE.global.md`。
 
 ## Workflow 与 Agent 模型（强制）
 
@@ -70,9 +71,9 @@
 ### 子代理超时统计：超过 15 分钟自动落盘（2026-10-03 新增）
 
 - **用户原话**（2026-10-03）：「加入一个统计统计所有subagent超过10五分钟的类型对所有项目和AgentMetaRules都生效。」「超过15min」「项目各自和全局都要落盘。」选项裁决：「规则 + 自动 hook」「每个项目各记各的」（随后补「项目各自和全局都要落盘」）「只统计 Claude Code」。Codex 子代理不在本条范围。
-- **机制**：本机全局 `~/.claude/settings.json` 挂一个 `SubagentStop` hook（`async: true`，不阻塞会话），命令为 `uv run --no-project --quiet python <正本>/scripts/subagent_stats.py hook`。hook 读输入里的 `agent_transcript_path`，以子代理转录首末两条记录的 `timestamp` 之差为时长，**严格大于 15 分钟（900 s）才记录**；Agent 工具子代理与 Workflow 内的 `agent()` 都会触发（后者转录在 `subagents/workflows/` 下，记 `workflow=true`）。hook 内任何异常只写错误日志、退出码恒为 0，不打断会话。新机器接入时照抄这一段 hook 配置（路径改成本机正本 clone）。
+- **机制**：本机全局 `~/.claude/settings.json`（配置目录被 `CLAUDE_CONFIG_DIR` 改写的机器用该目录；脚本的全局落盘与 `backfill` 扫描路径同样跟随该变量，正本路径取脚本自身所在的 clone，2026-10-16）挂一个 `SubagentStop` hook（`async: true`，不阻塞会话），命令为 `uv run --no-project --quiet python <正本>/scripts/subagent_stats.py hook`。hook 读输入里的 `agent_transcript_path`，以子代理转录首末两条记录的 `timestamp` 之差为时长，**严格大于 15 分钟（900 s）才记录**；Agent 工具子代理与 Workflow 内的 `agent()` 都会触发（后者转录在 `subagents/workflows/` 下，记 `workflow=true`）。hook 内任何异常只写错误日志、退出码恒为 0，不打断会话。新机器接入时照抄这一段 hook 配置（路径改成本机正本 clone）。
 - **两处落盘，缺一不可**：
-  - 全局 `~/.claude/subagent-stats/over-15min.jsonl`：本机所有目录的超时子代理都进这一份，不进任何仓库。
+  - 全局 `$CLAUDE_CONFIG_DIR/subagent-stats/over-15min.jsonl`（默认 `~/.claude`）：本机所有目录的超时子代理都进这一份，不进任何仓库。
   - 项目 `<主检出>/docs/subagent-stats/over-15min.jsonl`：只限接入本正本的仓库（`CLAUDE.md` 或 `AGENTS.md` 含 `AGENTMETARULES` 标记块）与正本仓库本身；worktree 里的子代理按 `git rev-parse --git-common-dir` 归到主检出。未接入的目录只进全局。
   - 每行一条 JSON：`agent_id`、`agent_type`、`description`、`model_requested`、`model_actual`、`workflow`、`start`、`end`、`duration_s`、`duration_min`、`tool_uses`、`session_id`、`project_root`、`cwd`、`git_branch`、`cc_version`、`transcript`、`source`（`hook`／`backfill`）。同一 `agent_id` 被续接后再停会追加新行，汇总时只取最后一行。
 - **主会话的义务**：

@@ -3,11 +3,11 @@
 
 用法（均只用标准库，经 `uv run --no-project --quiet python` 运行）：
   hook                SubagentStop hook 入口，从 stdin 读 hook 输入 JSON；任何异常都只写错误日志、退出码 0
-  backfill [--dry-run] 扫 ~/.claude/projects 下历史子代理转录，补录超过阈值且尚未记录的条目
+  backfill [--dry-run] 扫 $CLAUDE_CONFIG_DIR/projects（默认 ~/.claude）下历史子代理转录，补录超过阈值且尚未记录的条目
   summarize [--file F] [--project ROOT]  按类型与模型汇总，输出 Markdown 表
 
 落盘位置：
-  全局   ~/.claude/subagent-stats/over-15min.jsonl（所有项目、所有目录）
+  全局   $CLAUDE_CONFIG_DIR/subagent-stats/over-15min.jsonl（默认 ~/.claude；所有项目、所有目录）
   项目   <项目主检出>/docs/subagent-stats/over-15min.jsonl，仅限已接入 AgentMetaRules 的仓库
          （CLAUDE.md 或 AGENTS.md 含 AGENTMETARULES 标记块，或就是正本仓库本身）
 时长取子代理转录首末两条记录的 timestamp 之差；同一 agent_id 被续接后再次停止会追加新行，
@@ -26,9 +26,10 @@ import traceback
 from datetime import datetime, timezone
 
 THRESHOLD_S = 15 * 60
-CANON = "/data/hongzefu/AgentMetaRules-hongzefu"
+CANON = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # 本脚本所在的正本 clone（各机器路径不同）
 HOME = os.path.expanduser("~")
-GLOBAL_DIR = os.path.join(HOME, ".claude", "subagent-stats")
+CONFIG_DIR = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.join(HOME, ".claude")  # Claude Code 配置目录
+GLOBAL_DIR = os.path.join(CONFIG_DIR, "subagent-stats")
 GLOBAL_FILE = os.path.join(GLOBAL_DIR, "over-15min.jsonl")
 ERROR_LOG = os.path.join(GLOBAL_DIR, "hook-errors.log")
 PROJECT_REL = os.path.join("docs", "subagent-stats", "over-15min.jsonl")
@@ -226,7 +227,7 @@ def cmd_backfill(dry_run):
     seen = {}
     for p in [GLOBAL_FILE]:
         seen[p] = {r.get("agent_id") for r in load(p)}
-    paths = sorted(glob.glob(os.path.join(HOME, ".claude", "projects", "**", "agent-*.jsonl"), recursive=True))
+    paths = sorted(glob.glob(os.path.join(CONFIG_DIR, "projects", "**", "agent-*.jsonl"), recursive=True))
     added = collections.Counter()
     over = 0
     for tp in paths:
