@@ -36,6 +36,10 @@
         {"name": "eval-ood", "path": null},
         {"name": "policy", "path": "/scratch/hongze/robomme_policy_learning_MotionJEPA", "branch": "v2-motionmem"},
         {"name": "mjepa", "path": "/scratch/hongze/MotionJEPA", "branch": "v7.0-mixed8"},
+        {"name": "mjepa-backup", "path": "/scratch/hongze/MotionJEPA-backup", "branch": "dev/mixed8-vla-plan",
+         "remote": "https://github.com/hongzefu/MotionJEPA.git",
+         "_comment": "MotionJEPA 第二份检出（2026-10-16 为 mixed8 VLA 计划新建，dev/mixed8-vla-plan），只在本机存在；检出实际 origin 为 git@github.com:hongzefu/MotionJEPA.git（ssh），此处按本文件体例统一写 https，同一仓库",
+         "files": {"AGENTS.md": "common-agents", "CLAUDE.md": "common-claude", "greatlakes.md": "common-greatlakes"}},
         {"name": "newtask-v3", "path": "/scratch/hongze/robomme_benchmark_newtask-v3-MotionJepa1006"},
         {"name": "global-claude", "path": "/home/ec2-user/.claude-personal"}
       ]
