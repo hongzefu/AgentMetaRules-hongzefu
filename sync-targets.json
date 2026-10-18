@@ -43,6 +43,15 @@
         {"name": "newtask-v3", "path": "/scratch/hongze/robomme_benchmark_newtask-v3-MotionJepa1006"},
         {"name": "global-claude", "path": "/home/ec2-user/.claude-personal"}
       ]
+    },
+    "sled-aspen": {
+      "_comment": "sled-aspen.eecs.umich.edu（各项目的环境 A，CLAUDE.md 第 0 条）；~/.claude 默认 CLAUDE_CONFIG_DIR；本机只存在 mjepa（NFS）与 newtask-v3（/data）两份检出；2026-10-17 登记",
+      "targets": [
+        {"name": "benchmark", "path": null},
+        {"name": "benchmark-ood", "path": null},
+        {"name": "eval-ood", "path": null},
+        {"name": "policy", "path": null}
+      ]
     }
   }
 }
