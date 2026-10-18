@@ -50,7 +50,11 @@
         {"name": "benchmark", "path": null},
         {"name": "benchmark-ood", "path": null},
         {"name": "eval-ood", "path": null},
-        {"name": "policy", "path": null}
+        {"name": "policy", "path": null},
+        {"name": "coimprovement", "path": "/data/hongzefu/motionjepa-coimprovement", "branch": "main",
+         "remote": "https://github.com/hongzefu/motionjepa-coimprovement.git",
+         "_comment": "MotionJEPA 训练效果提升调研仓库（子模块钉 MotionJEPA v7.0-mixed8 / policy v2-motionmem / amazon-far imprint），只在本机存在；不上集群，只接 AGENTS.md / CLAUDE.md；2026-10-18 接入",
+         "files": {"AGENTS.md": "common-agents", "CLAUDE.md": "common-claude"}}
       ]
     }
   }
