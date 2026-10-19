@@ -294,3 +294,38 @@ def test_post_commit_silent_when_not_matching(w):
     git(w.a, "push", "-q")
     payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "git commit -m y"}})
     assert guard(w.a, "post-commit", stdin=payload) == ""  # 已推送：匹配也不输出
+
+
+def test_behind_not_onboarded_fast_forwards_into_onboarded(w):
+    """B 落后且未接入，远端已由 A 接入：一次 fix 快进后应走 --init，而不是再 submodule add。"""
+    tmp = w.tmp
+    git(tmp, "init", "-q", "--bare", "--initial-branch=main", "remote2.git")
+    remote2 = tmp / "remote2.git"
+    git(tmp, "clone", "-q", str(remote2), "seed2")
+    seed = tmp / "seed2"
+    git(seed, "checkout", "-q", "-b", "main")
+    (seed / "AGENTS.md").write_text("# 项目\n\n" + BEGIN + "旧版内容\n" + END + "\n项目专属尾部\n", encoding="utf-8")
+    git(seed, "add", "--", "AGENTS.md")
+    git(seed, "commit", "-q", "-m", "项目初始")
+    git(seed, "push", "-q", "-u", "origin", "main")
+    a = tmp / "A2"
+    b = tmp / "B2"
+    git(tmp, "clone", "-q", str(remote2), "A2")
+    git(tmp, "clone", "-q", str(remote2), "B2")
+    # A 完成接入并推送
+    out = guard(a, "fix")
+    assert "RULES_SYNC=NOT_ONBOARDED" in out and "GUARD_STEP=submodule_add" in out, out
+    assert "GUARD_FIX=PASS" in out and "push=done" in out, out
+    remote_after_a = git(remote2, "rev-parse", "refs/heads/main")
+    # B 落后、未接入
+    out = guard(b, "fix")
+    assert "REPO_SYNC=BEHIND n=1" in out and "RULES_SYNC=NOT_ONBOARDED" in out, out
+    assert "GUARD_STEP=ff_merge" in out and "GUARD_STEP=submodule_add" not in out, out
+    assert "GUARD_FIX=PASS" in out and "commit=none" in out, out
+    assert git(b, "rev-parse", "HEAD") == remote_after_a  # 无多余 commit
+    assert git(remote2, "rev-parse", "refs/heads/main") == remote_after_a
+    assert git(b / ".agentmetarules", "rev-parse", "HEAD") == git(tmp / "canon.git", "rev-parse", "refs/heads/main")
+    check = subprocess.run([sys.executable, str(b / ".agentmetarules" / "scripts" / "sync_rules.py"), "self-check"],
+                           cwd=b, capture_output=True, text=True, timeout=120)
+    assert "SYNC_SUMMARY=PASS" in check.stdout, check.stdout + check.stderr
+    assert git(b, "status", "--porcelain") == ""
