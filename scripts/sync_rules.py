@@ -88,6 +88,7 @@ __all__ = [
     "outside_digests",
     "load_config",
     "load_onboard_spec",
+    "load_self_config",
     "apply_to_path",
     "main",
 ]
@@ -1411,6 +1412,11 @@ def cmd_check(args) -> int:
     canon = _open_canon(cfg, args, emit, need_clean=True)
     if canon is None:
         return EXIT_FAIL
+    return _check_kernel(emit, canon, targets, args)
+
+
+def _check_kernel(emit, canon: Canon, targets: List[Target], args) -> int:
+    """check 的比对内核（cmd_check 与 cmd_self_check 共用）：逐目标逐文件打印 SYNC 行与 SYNC_SUMMARY。"""
     need = sorted({blk for t in targets for blk in t.files.values()})
     blocks = _load_blocks(canon, need, emit)
     if blocks is None:
@@ -1528,15 +1534,24 @@ def cmd_apply(args) -> int:
     canon = _open_canon(cfg, args, emit, need_clean=True)
     if canon is None:
         return EXIT_FAIL
+    n = _apply_kernel(emit, canon, target, files, args)
+    if n is None:
+        return EXIT_FAIL
+    return EXIT_FAIL if n["FAIL"] else EXIT_OK
+
+
+def _apply_kernel(emit, canon: Canon, target: Target, files: List[str], args) -> Optional[Dict[str, int]]:
+    """apply 的写回内核（cmd_apply 与 cmd_self_apply 共用）：返回各状态计数；正本块读取失败返回 None。"""
     blocks = _load_blocks(canon, sorted({target.files[f] for f in files}), emit)
     if blocks is None:
-        return EXIT_FAIL
+        return None
     n = {"PASS": 0, "NOOP": 0, "FAIL": 0}
     if not os.path.isdir(target.path):
         for f in files:
             emit(f"APPLY=FAIL repo={target.name} file={f} reason=path_absent path={os.path.join(target.path, f)}")
         emit(f"APPLY_SUMMARY=FAIL written=0 noop=0 fail={len(files)}")
-        return EXIT_FAIL
+        n["FAIL"] = len(files)
+        return n
     _warn_branch(emit, target)
     for f in files:
         blk = target.files[f]
@@ -1553,7 +1568,137 @@ def cmd_apply(args) -> int:
                                spec, target.ledger_anchor.get(f))
         n[status] += 1
     emit(f"APPLY_SUMMARY={'FAIL' if n['FAIL'] else 'PASS'} written={n['PASS']} noop={n['NOOP']} fail={n['FAIL']}")
-    return EXIT_FAIL if n["FAIL"] else EXIT_OK
+    return n
+
+
+# ---------------------------------------------------------------------------
+# 自同步模式（项目仓库根目录的子模块 .agentmetarules 即正本）
+# ---------------------------------------------------------------------------
+
+#: 自同步模式的子模块目录名（相对项目仓库根）。
+SELF_SUBMODULE = ".agentmetarules"
+
+#: 自同步模式的正本固定映射：正本文件名 -> 块名（不含 common-global，全局配置仍走 apply --repo global-claude）。
+SELF_CANON_FILES = {
+    "AGENTS.md": "common-agents",
+    "CLAUDE.md": "common-claude",
+    "greatlakes.md": "common-greatlakes",
+}
+
+#: 本脚本所在的正本仓库顶层（scripts/ 的上一级）；子模块里运行时即 <root>/.agentmetarules。
+_SCRIPT_REPO_TOP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+class SelfSyncRefused(SyncError):
+    """自同步守卫拒绝执行（reason = canon_is_target / no_submodule / canon_dirty / no_markers）。"""
+
+
+def _git_toplevel(path: str) -> Optional[str]:
+    r = _git(path, ["rev-parse", "--show-toplevel"])
+    if r.returncode != 0:
+        return None
+    return r.stdout.decode("utf-8", "backslashreplace").strip() or None
+
+
+def _git_common_dir(path: str) -> Optional[str]:
+    """返回 path 所在仓库的 git 公共目录真实路径（同一仓库的各 worktree 相同）；不在仓库里返回 None。"""
+    r = _git(path, ["rev-parse", "--path-format=absolute", "--git-common-dir"])
+    if r.returncode != 0:
+        return None
+    out = r.stdout.decode("utf-8", "backslashreplace").strip()
+    return os.path.realpath(out) if out else None
+
+
+def load_self_config(root: str) -> Tuple[Config, Target]:
+    """构造自同步模式的配置：正本 = ``<root>/.agentmetarules``（版本取其 HEAD，子模块是 detached HEAD），目标 = root。
+
+    目标文件由扫描 root 下 AGENTS.md / CLAUDE.md / greatlakes.md 里现有的 ``AGENTMETARULES:BEGIN <块名>`` 行得出，
+    块名按 SELF_CANON_FILES 的固定映射；不读 sync-targets.json。
+    守卫（抛 SelfSyncRefused）：root 即正本仓库（canon_is_target；真实路径相同，或与本脚本所在仓库共用 git 公共目录，
+    即同一仓库的另一个 worktree）、root 下没有子模块（no_submodule）、
+    三份文件都没有对应的 BEGIN 行（no_markers）。子模块工作区是否干净由调用方另查（canon_dirty）。
+    """
+    root_real = os.path.realpath(root)
+    canon_path = os.path.join(root_real, SELF_SUBMODULE)
+    tops = {os.path.realpath(_SCRIPT_REPO_TOP)}
+    if os.path.isdir(canon_path):
+        top = _git_toplevel(canon_path)
+        if top:
+            tops.add(os.path.realpath(top))
+    same_repo = False
+    common_root = _git_common_dir(root_real)
+    if common_root is not None:
+        same_repo = common_root == _git_common_dir(_SCRIPT_REPO_TOP)
+    if root_real in tops or same_repo:
+        raise SelfSyncRefused("canon_is_target", f"--root {root_real} 就是正本仓库本身；正本仓库不加子模块、不做自同步（R1）")
+    if not os.path.exists(os.path.join(canon_path, ".git")):
+        raise SelfSyncRefused("no_submodule", f"{canon_path} 不存在或未初始化（缺 .git）；先 git submodule update --init")
+    files: Dict[str, str] = {}
+    for f, blk in SELF_CANON_FILES.items():
+        data = _read_file(os.path.join(root_real, f))
+        if data is None:
+            continue
+        want = MARKER_PREFIX + b"BEGIN " + blk.encode()
+        if any(line.startswith(want) and line[len(want):len(want) + 1] in (b" ",) for line in data.split(b"\n")):
+            files[f] = blk
+    if not files:
+        raise SelfSyncRefused("no_markers", f"{root_real} 下的 {list(SELF_CANON_FILES)} 里没有任何 AGENTMETARULES:BEGIN 行")
+    block_to_file = {v: k for k, v in SELF_CANON_FILES.items()}
+    cfg = Config("self", canon_path, "HEAD", dict(SELF_CANON_FILES), block_to_file,
+                 [Target("self", root_real, None, None, files, {})], None)
+    return cfg, cfg.targets[0]
+
+
+def _self_open(args, emit) -> Tuple[Optional[Canon], Optional[Target]]:
+    """自同步模式的公共前置：打印 MODE=self，跑守卫，打开正本（版本 = 子模块 HEAD）。失败返回 (None, None)。"""
+    emit(f"MODE=self root={os.path.realpath(args.root)}")
+    try:
+        cfg, target = load_self_config(args.root)
+        dirty = git_dirty_entries(cfg.canon_path)
+        if dirty:
+            _note("子模块工作区不干净（git status --porcelain）：\n  " + "\n  ".join(dirty[:20]))
+            if not args.allow_dirty:
+                raise SelfSyncRefused("canon_dirty", f"{cfg.canon_path} 有 {len(dirty)} 条未提交改动；本地调试可加 --allow-dirty")
+            emit(f"SELF_SYNC=WARN reason=canon_dirty dirty_entries={len(dirty)} allowed=1")
+    except SelfSyncRefused as exc:
+        emit(f"SELF_SYNC=FAIL reason={exc.reason} root={os.path.realpath(args.root)}")
+        _note(f"错误：{exc.detail}")
+        return None, None
+    args.canon_rev = "HEAD"
+    canon = _open_canon(cfg, args, emit, need_clean=False)
+    if canon is None:
+        return None, None
+    emit(f"SELF_SYNC=PASS files={','.join(target.files)} canon_sha={canon.sha}")
+    return canon, target
+
+
+def cmd_self_check(args) -> int:
+    """自同步比对：只读，比对根目录三份文件的块与子模块 HEAD 的正本块。退出码同 check。"""
+    emit = _printer(sys.stdout)
+    args.rev = args.where = None
+    canon, target = _self_open(args, emit)
+    if canon is None:
+        return EXIT_FAIL
+    return _check_kernel(emit, canon, [target], args)
+
+
+def cmd_self_apply(args) -> int:
+    """自同步写回：把子模块 HEAD 的正本块写进根目录三份文件，随后复查一遍并打印 SYNC_SUMMARY。
+
+    退出码：0 有写入且复查通过 / 3 全部 NOOP 且复查通过 / 2 失败。不做任何 git 写操作。
+    """
+    emit = _printer(sys.stdout)
+    args.rev = args.where = None
+    args.onboard = None
+    canon, target = _self_open(args, emit)
+    if canon is None:
+        return EXIT_FAIL
+    n = _apply_kernel(emit, canon, target, list(target.files), args)
+    if n is None or n["FAIL"]:
+        return EXIT_FAIL
+    if _check_kernel(emit, canon, [target], args) != EXIT_OK:
+        return EXIT_FAIL
+    return EXIT_OK if n["PASS"] else EXIT_NOOP
 
 
 # ---------------------------------------------------------------------------
@@ -1568,6 +1713,8 @@ _EPILOG = """\
   check      0 全部 PASS / 1 有 FAIL 或 MISSING / 2 正本或配置错误
   apply      0 全部写入或 NOOP / 2 有 FAIL
   lint       0 全部 PASS / 1 有 FAIL / 2 正本或配置错误
+  self-check 同 check（守卫拒绝 SELF_SYNC=FAIL reason=canon_is_target|no_submodule|canon_dirty|no_markers 时退出 2）
+  self-apply 0 有写入 / 3 全部 NOOP / 2 失败（含守卫拒绝）
 本脚本绝不执行 git add / commit / push；git 调用全部只读。
 """
 
@@ -1645,6 +1792,20 @@ def build_parser() -> argparse.ArgumentParser:
                        description="对正本三文件做源 lint：标记存在且唯一、BEGIN 无属性、块内无标记行、块以 \\n 结尾、无 \\r/BOM。")
     p.add_argument("--worktree", action="store_true", help="改为 lint 正本工作树文件（仅供提交前自查；其余子命令从不读工作树）")
     p.set_defaults(func=cmd_lint)
+
+    p = sub.add_parser("self-check", help="自同步比对：正本 = <root>/.agentmetarules 子模块 HEAD，目标 = <root>（只读）",
+                       description="自同步比对：正本 = <root>/.agentmetarules 子模块的 HEAD，目标 = <root> 下带 BEGIN 行的 "
+                                   "AGENTS.md / CLAUDE.md / greatlakes.md；输出带 MODE=self。退出码同 check。")
+    p.add_argument("--root", default=".", help="项目仓库根目录（默认 .）")
+    p.add_argument("--allow-dirty", action="store_true", help="子模块工作区不干净时也放行（只放行 canon_dirty）")
+    p.set_defaults(func=cmd_self_check)
+
+    p = sub.add_parser("self-apply", help="自同步写回：把子模块 HEAD 的正本块写进 <root> 的三份文件（不做 git 写操作）",
+                       description="自同步写回：把 <root>/.agentmetarules 子模块 HEAD 的正本块写进 <root> 下带 BEGIN 行的三份文件，"
+                                   "写后复查并打印 SYNC_SUMMARY；输出带 MODE=self。退出码 0 有写入 / 3 全部 NOOP / 2 失败。")
+    p.add_argument("--root", default=".", help="项目仓库根目录（默认 .）")
+    p.add_argument("--allow-dirty", action="store_true", help="子模块工作区不干净时也放行（只放行 canon_dirty）")
+    p.set_defaults(func=cmd_self_apply)
     return parser
 
 
