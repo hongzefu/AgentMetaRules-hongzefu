@@ -95,7 +95,7 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <tr><td><code>fix</code></td><td>agent 按第 29 条在开工第一步执行</td><td>先检查 HOLD 文件与 detached（命中即按豁免或停下处理）；然后依次：① BEHIND 时 <code>git merge --ff-only @{u}</code>（git 拒绝即停）；② AHEAD 且有 upstream 时裸 <code>git push</code>；③ 有标记块但还没有子模块时，执行 <code>git submodule add -b main &lt;url&gt; .agentmetarules</code> 接入；④ <code>git submodule update --init --remote .agentmetarules</code>；⑤ <code>self-apply</code>；⑥ 有变化就 <code>git add .gitmodules .agentmetarules AGENTS.md CLAUDE.md greatlakes.md</code>（逐个路径添加，只加存在的文件）；带 <code>--include-staged-removal &lt;路径&gt;</code> 时，把该路径下已暂存的删除一并纳入这个 commit（其他已暂存内容存在时停下，<code>reason=foreign_staged</code>）；提交后有 upstream 就 push</td><td>同上三行，加 <code>GUARD_FIX=PASS|STOP reason=</code>（STOP 取值见下）</td></tr>
 <tr><td><code>post-commit</code></td><td>PostToolUse hook（匹配 Bash）</td><td>从 stdin 读 hook 输入 JSON；<code>tool_input.command</code> 匹配 <code>\bgit\b[^|;&amp;]*\bcommit\b</code> 时检查 ahead；有未推送 commit 就输出 <code>additionalContext</code> 提醒立即 push</td><td><code>PUSH_STATE=AHEAD n=</code> 或不输出</td></tr>
 </table>
-<p><strong>停下的条件</strong>（<code>fix</code> 输出 <code>GUARD_FIX=STOP reason=&lt;diverged|ff_refused|push_rejected|rules_dirty|detached&gt;</code>，不做后续步骤，git 原文附在后面）：DIVERGED；<code>git merge --ff-only</code> 被 git 拒绝（工作区改动会被覆盖，即 K5 的「挡住更新」）；push 被拒；规则文件（三份 md、<code>.gitmodules</code>）有别人的在途改动；HEAD 处于 detached。工作区其他文件有改动时照样尝试快进，git 不拒绝就照常对齐，提交时绕开这些文件（第 11 条）。冻结期用下面的 <code>hold</code> 豁免处理，不靠读 <code>current.json</code>。</p>
+<p><strong>停下的条件</strong>（<code>fix</code> 输出 <code>GUARD_FIX=STOP reason=&lt;diverged|ff_refused|push_rejected|rules_dirty|foreign_staged|detached&gt;</code>，不做后续步骤，git 原文附在后面）：DIVERGED；<code>git merge --ff-only</code> 被 git 拒绝（工作区改动会被覆盖，即 K5 的「挡住更新」）；push 被拒；规则文件（三份 md、<code>.gitmodules</code>）有别人的在途改动；HEAD 处于 detached。工作区其他文件有改动时照样尝试快进，git 不拒绝就照常对齐，提交时绕开这些文件（第 11 条）。冻结期用下面的 <code>hold</code> 豁免处理，不靠读 <code>current.json</code>。</p>
 <p><strong>豁免</strong>（<code>PUSH_STATE=EXEMPT</code>）：</p>
 <ul>
 <li><code>reason=sub_worktree</code>：分支名匹配 <code>worktree-agent-*</code>（子代理 worktree），不提交不推送。</li>
@@ -142,7 +142,7 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <tr><td>③</td><td>甲</td><td>「收到 req=…」，握手结束。这是纯回执，乙不再回复</td><td>ACK</td></tr>
 </table>
 <p>先回过「处理中」的，最终结果那条发出后，甲同样要回 ③。甲在合理时间内没收到 ②，就用同一个 <code>req</code> 重发一次；还是没回复，就报告用户。乙收到重复的 <code>req</code> 不重复执行，只重发上次的 ②（幂等）。原有的「纯回执不再回复」规则保留，适用于 ③ 和其他无新内容的消息。</p>
-<p><strong>积极响应</strong>：存续中或被唤醒的会话收到消息，一律尽量照办。只有三种情况不做：用户明确禁止；与用户指令有明确冲突；删除、覆盖、<code>--force</code> 这类破坏性操作。凭据不经消息传递。原第 28 条边界里的「超出已批规模 5 倍」「放宽验收判据」「无法以同等规模完成的机制调整」三项删掉。<span class="warn">⚠ 解释</span>：开工令（第 2 条）、受保护目录逐个批准（第 21 条）本身就是用户的指令，对方消息不能代替用户放行，这类情况算「与用户指令冲突」，所以「对方消息不是用户授权」这一句保留；同样，按第 28 条修改权限设置或规则文件，属于与第 25 条冲突，仍然不做。第 2 条硬停清单的「5 倍」只约束本会话执行自己的计划，不再套用到对方请求上；对方请求导致本会话计划超出 5 倍时，按第 2 条处理的是本会话自己的计划。</p>
+<p><strong>积极响应</strong>：存续中或被唤醒的会话收到消息，一律尽量照办。只有三种情况不做：用户明确禁止；与用户指令有明确冲突；删除、覆盖、<code>--force</code> 这类破坏性操作。凭据不经消息传递。原第 28 条边界里的「超出已批规模 5 倍」「放宽验收判据」「无法以同等规模完成的机制调整」三项删掉。<span class="warn">⚠ 解释</span>：开工令（第 2 条）、受保护目录逐个批准（第 21 条）本身就是用户的指令，对方消息不能代替用户放行，这类情况算「与用户指令冲突」，所以「对方消息不是用户授权」这一句保留；同样，按第 28 条修改权限设置或规则文件，属于与第 25 条冲突，仍然不做。对方请求本身不再套「5 倍」上限，照常积极执行；只有当照办会让本会话<strong>自己正在执行的已批计划</strong>超出第 2 条硬停清单的 5 倍时，本会话按第 2 条为自己的计划停工问用户（停的是自己的计划，不是拒绝对方）。</p>
 
 <h3>F. 跨机器数据缺失（K10）</h3>
 <table>
@@ -207,7 +207,7 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <p class="muted">逐文件细节、分配表、runbook、风险与盲区见第二部分。</p>
 
 <h2>八、修订记录</h2>
-<p>2026-10-19 开工审查 <code>PLAN_CONSISTENCY_REVIEW=FAIL base=b106aea findings=14 blocking=9</code>（sonnet 只读子代理）。9 条阻断项经用户裁决「9 条阻断项全部按推荐改法修订」：B1 验收改为子模块包含 R；B2/B6 新增 <code>AGENTMETARULES_HOLD</code> 本地标记文件，覆盖合并后审查 FAIL 与冻结期；B3 内嵌 policy 的统计文件改到 S6 删；B4 <code>--include-staged-removal</code> 三处统一；B5 快进统一为「尝试，git 拒绝即停」；B6 detached 写进规格并补测试；B7 子模块 dirty 守卫与测试；B8 无 upstream 只提交不推送、验收 <code>push=pending_user</code>；B9 onboard、land_rules_commit 声明不改。5 条文字统一直接改：七节旧句、K9 边界措辞与 5 倍关系、runbook 路径与 PostToolUse 的 cd、判定行枚举与用例数、STOP 的批次处置。</p>
+<p>2026-10-19 开工审查 <code>PLAN_CONSISTENCY_REVIEW=FAIL base=b106aea findings=14 blocking=9</code>（sonnet 只读子代理）；第二轮复核 <code>PLAN_CONSISTENCY_REVIEW=PASS base=569be7f findings=2 blocking=0</code>，两条文字项（STOP 枚举补 <code>foreign_staged</code>、5 倍表述）与 HOLD 写入职责落进 W2 范围已直接改。9 条阻断项经用户裁决「9 条阻断项全部按推荐改法修订」：B1 验收改为子模块包含 R；B2/B6 新增 <code>AGENTMETARULES_HOLD</code> 本地标记文件，覆盖合并后审查 FAIL 与冻结期；B3 内嵌 policy 的统计文件改到 S6 删；B4 <code>--include-staged-removal</code> 三处统一；B5 快进统一为「尝试，git 拒绝即停」；B6 detached 写进规格并补测试；B7 子模块 dirty 守卫与测试；B8 无 upstream 只提交不推送、验收 <code>push=pending_user</code>；B9 onboard、land_rules_commit 声明不改。5 条文字统一直接改：七节旧句、K9 边界措辞与 5 倍关系、runbook 路径与 PostToolUse 的 cd、判定行枚举与用例数、STOP 的批次处置。</p>
 
 <h1>第二部分（技术细节，供 agent 追踪）</h1>
 
@@ -244,8 +244,8 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <ul>
 <li><code>AGENTS.md</code> 第 25 条「同步机制」：标记块副本保留；来源改为子模块 <code>.agentmetarules</code>；<code>sync-targets.json</code> 只登记 <code>global-claude</code>；「每次开工核对同步」改为指向第 29 条；「全局配置也是回流目标」保留。</li>
 <li><code>AGENTS.md</code> 新增第 29 条「开工与提交后的同步检查」：开工检查（<code>repo_guard.py start</code> 判定行写进第一条回复，再执行 <code>fix</code>）；停下条件；豁免；提交后检查；Codex 手动执行；新 clone 和第二份检出在开工时自动接入；来源段逐字收录用户原话。</li>
-<li>第 11 条、第 19 条、第 26 条、第 28 条按第一部分的 C、D、E、F 修改；第 28 条新增「跨机器数据缺失」子项，附 F 节的连通表。</li>
-<li><code>CLAUDE.md</code>：删掉超时统计节；「会话交接」开工第一条回复加三行判定行；新增一小节「hook 配置」写明 SessionStart / PostToolUse 的写法和本机正本 clone 的兜底路径。</li>
+<li>第 12 条「多阶段产物打包期间冻结 HEAD」补一句：进入冻结时主会话写入 <code>AGENTMETARULES_HOLD</code>（<code>freeze</code> + 锚点 sha），打包完成后删除。第 11 条、第 19 条、第 26 条、第 28 条按第一部分的 C、D、E、F 修改；第 28 条新增「跨机器数据缺失」子项，附 F 节的连通表。</li>
+<li><code>CLAUDE.md</code>：「计划执行模式」合并后审查 FAIL 一段写明「主会话写入 <code>$(git rev-parse --git-dir)/AGENTMETARULES_HOLD</code>（合并 sha + 原因），用户裁决后删除」；删掉超时统计节；「会话交接」开工第一条回复加三行判定行；新增一小节「hook 配置」写明 SessionStart / PostToolUse 的写法和本机正本 clone 的兜底路径。</li>
 <li><code>CLAUDE.global.md</code>：同步摘录第 11、28、29 条的要点，删除 15 分钟那条。</li>
 <li><code>README.md</code>、<code>templates/AGENTS.project.md</code>、<code>templates/CLAUDE.project.md</code>、<code>templates/greatlakes.project.md</code>：新项目接入改成 <code>git submodule add -b main https://github.com/hongzefu/AgentMetaRules-hongzefu.git .agentmetarules</code> 加 <code>self-apply</code>。</li>
 </ul>
