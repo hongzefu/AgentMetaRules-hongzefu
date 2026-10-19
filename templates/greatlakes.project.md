@@ -1,9 +1,9 @@
 # greatlakes 提交规约（<仓库名> 副本）
 
-本文件标记块内是正本 `greatlakes.md` 通用块（H1 标题之后到文末）的逐字副本，由 `sync_rules.py apply` 填入、不得手改；`<GL_REPO>` 等占位符的本仓库取值见 `AGENTS.md`「占位符取值」；本仓库的放行记录、现成脚本与实测表写在标记块之后。
+本文件标记块内是正本 `greatlakes.md` 通用块（H1 标题之后到文末）的逐字副本，由子模块 `.agentmetarules/` 里的 `sync_rules.py self-apply` 填入（`AGENTS.md` 第 25、29 条）、不得手改；`<GL_REPO>` 等占位符的本仓库取值见 `AGENTS.md`「占位符取值」；本仓库的放行记录、现成脚本与实测表写在标记块之后。
 
 <!-- AGENTMETARULES:BEGIN common-greatlakes src=<正本 sha> blob=<块 blob> -->
-（由 sync_rules.py apply 填入，勿手改）
+（由 sync_rules.py self-apply 填入，勿手改）
 <!-- AGENTMETARULES:END common-greatlakes -->
 
 ## 项目专属

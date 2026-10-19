@@ -10,6 +10,7 @@
 - <GitHub 凭据：用哪把 key、有没有 `gh`>
 - <Claude Code 配置目录（`CLAUDE_CONFIG_DIR`）若非默认 `~/.claude`，写明>
 - <正本 clone 路径；本机在 `sync-targets.json` `machines` 段登记的键>
+- <全局 `settings.json` 是否已挂 `SessionStart`／`PostToolUse` 两个 hook（正本 `CLAUDE.md`「hook 配置」），兜底脚本路径 `<正本 clone>/scripts/repo_guard.py`；本机不再挂 15 分钟统计 hook>
 
 <!-- AGENTMETARULES:BEGIN common-global -->
 （由 sync_rules.py apply 填入，勿手改）
