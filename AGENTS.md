@@ -447,9 +447,10 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
       | sled-aspen → sled-vail | `ssh -o BatchMode=yes sled-vail.eecs.umich.edu hostname` 返回 `sled-vail`，rc=0 | 直接 SSH 操作 |
       | sled-aspen → greatlakes | `ssh -O check greatlakes` 返回 `Master running` | 直接复用；ControlMaster 断了要重建时，**先问用户用哪种 Okta 验证方式**（第 8 条、`greatlakes.md`） |
       | sled-vail → greatlakes | `Master running` | 同上 |
-      | sled-vail → sled-aspen | `Permission denied (publickey,password)`，rc=255 | 待 vail 公钥加进 aspen `~/.ssh/authorized_keys` 打通（1019 计划 S7）；打通前 vail 一侧只能发消息给 aspen 上的会话 |
+      | sled-vail → sled-aspen | 2026-10-19 复测：`ssh -o BatchMode=yes sled-aspen hostname`（走 `~/.ssh/config` 别名，`IdentityFile ~/.ssh/id_ed25519_umich`，该公钥本已在 aspen `authorized_keys`）返回 `sled-aspen.eecs.umich.edu`，rc=0；此前的 `Permission denied (publickey,password)` 是因为用完整域名 `sled-aspen.eecs.umich.edu` 登录、不走别名、没用这把钥匙 | 直接 SSH 操作，**必须用别名 `ssh sled-aspen`** |
       | 任意 ↔ AWS | 不尝试 SSH | 只能发消息唤醒 AWS 上的会话（`SendMessage`／`ListAgents` 可达的会话） |
 
+      - 结论：sled-aspen、sled-vail、greatlakes 三者互通，直接 SSH 操作（greatlakes 的 ControlMaster 断了先问用户 Okta 验证方式）；AWS 仍只发消息。
       - 目标机器上**没有可唤醒的会话**时停下，在汇报里写清缺什么、在哪台机器、建议怎么补。
       - 补数据仍受第 14、15 条约束：落点按目标机器的存储边界；大下载先问用户；同步只用 `rsync`，权威源一侧不动。
     - **留痕**：跨会话达成的约定（排队时点、交接产物与路径、谁占哪张卡、谁先谁后）连同 `req` 编号写进当轮给用户的汇报；涉及任务状态、依赖或交接的，写进第 27 条 `docs/handoff/current.json` 的对应任务条目，不只留在会话消息里。
@@ -475,7 +476,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
       ```
 
       `fix` 依次：先查 `AGENTMETARULES_HOLD` 与 detached HEAD；① 落后时 `git merge --ff-only @{u}`（只快进，git 拒绝即停）；② 有未推送 commit 且有 upstream 时裸 `git push` 补推；③ 有标记块但还没有子模块时 `git submodule add -b main https://github.com/hongzefu/AgentMetaRules-hongzefu.git .agentmetarules` 接入；④ `git submodule update --init --remote .agentmetarules` 更新到正本最新；⑤ `self-apply` 写回根目录规则文件（第 25 条）；⑥ 有变化就逐个路径 `git add .gitmodules .agentmetarules AGENTS.md CLAUDE.md greatlakes.md`（只加存在的文件），在同一个 commit 里提交并推送（`--include-staged-removal <路径>` 把该路径下已暂存的删除一并纳入这个 commit）。末行判定 `GUARD_FIX=PASS|STOP reason=`。hook 本身不写仓库，提交与推送放在 agent 可见、可停的 `fix` 步骤里做。
-    - **停下的条件**：`fix` 输出 `GUARD_FIX=STOP reason=<diverged|ff_refused|push_rejected|rules_dirty|foreign_staged|detached>` 时不做后续步骤，把 git 原文与 `git status -sb` 原文交用户裁决，不 rebase、不 merge、不 force（第 11 条）：`diverged` 本地与远端分叉；`ff_refused` 快进被 git 拒绝（本地在途改动会被覆盖）；`push_rejected` push 被拒；`rules_dirty` 三份规则 md 或 `.gitmodules` 有别人的在途改动；`foreign_staged` 暂存区里有不属于本次的内容；`detached` HEAD 处于 detached。工作区其他文件有改动时照样尝试快进，git 不拒绝就照常对齐，提交时绕开这些文件（第 11 条）。**批次中**（一次处理多个仓库）某个仓库 STOP 时，跳过该仓库、继续处理其他仓库，不等裁决；STOP 原文列进收尾汇报，由用户逐项裁决。
+    - **停下的条件**：`fix` 输出 `GUARD_FIX=STOP reason=<diverged|ff_refused|push_rejected|rules_dirty|foreign_staged|detached>` 时不做后续步骤，把 git 原文与 `git status -sb` 原文交用户裁决，不 rebase、不 merge、不 force（第 11 条）：`diverged` 本地与远端分叉；`ff_refused` 快进被 git 拒绝（本地在途改动会被覆盖）；`push_rejected` push 被拒；`rules_dirty` 三份规则 md 或 `.gitmodules` 有别人的在途改动；`foreign_staged` 暂存区里有不属于本次的内容；`detached` HEAD 处于 detached。此外 `fix` 各步骤自身失败时也输出 STOP：`submodule_add_failed`（③ 接入子模块失败）、`submodule_update_failed`（④ 更新子模块失败）、`self_apply_failed`（⑤ 写回规则文件失败）、`add_failed`（⑥ 暂存失败）、`commit_failed`（⑥ 提交失败），同样停下、把原文交用户（实现见 `scripts/repo_guard.py`）。工作区其他文件有改动时照样尝试快进，git 不拒绝就照常对齐，提交时绕开这些文件（第 11 条）。**批次中**（一次处理多个仓库）某个仓库 STOP 时，跳过该仓库、继续处理其他仓库，不等裁决；STOP 原文列进收尾汇报，由用户逐项裁决。
     - **豁免**（`PUSH_STATE=EXEMPT`）：
       - `reason=sub_worktree`：分支名匹配 `worktree-agent-*`（子代理 worktree），不提交、不推送。
       - `reason=no_upstream`：当前分支没有 upstream；`fix` 照常提交、不推送，agent 问用户一次是否 `git push -u`（第 11 条「没有 upstream」例外）。
