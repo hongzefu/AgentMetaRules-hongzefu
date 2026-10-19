@@ -191,14 +191,14 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <tr><td>S6</td><td>vail（SSH 直接操作）：全局 hook，删 <code>SubagentStop</code>，global apply，仓库迁移</td><td><code>GLOBAL_SYNC=PASS host=sled-vail</code>、<code>HOOK_LIVE=PASS host=sled-vail</code>、各仓库 <code>REPO_MIGRATE=PASS</code></td></tr>
 <tr><td>S7</td><td>vail → aspen 公钥：把 vail 的 <code>~/.ssh/id_*.pub</code> 追加进 aspen 的 <code>~/.ssh/authorized_keys</code>（只追加，不覆盖）</td><td><code>SSH_VAIL_ASPEN=PASS</code></td></tr>
 <tr><td>S8</td><td>AWS：用 ListAgents 找 AWS 上的会话，按三次握手发请求，请它执行同样的 S4–S6 步骤；没有可唤醒会话就在汇报里列为待办</td><td>对方 ② 里回传的判定行，或 <code>AWS=PENDING reason=no_session</code></td></tr>
-<tr><td>S9</td><td>收尾：正本 <code>docs/sources.md</code> 追加来源行，本计划追加「实施结果」小节，正本 <code>docs/handoff/current.json</code> 写交接</td><td><code>HANDOFF_WRITE=PASS</code></td></tr>
+<tr><td>S9</td><td>收尾：正本 <code>docs/sources.md</code> 追加来源行，本计划追加「实施结果」小节，收尾汇报写明交接（不登记状态机）</td><td>汇报列出全部判定行</td></tr>
 </table>
 
 <h2>六、子代理分工与合并（简述）</h2>
 <p>正本改动拆成两块，并行做，各自在独立 worktree 里：<strong>W1</strong> 管脚本和测试（<code>scripts/</code>、<code>tests/</code>），<strong>W2</strong> 管规则文本（<code>AGENTS.md</code>、<code>CLAUDE.md</code>、<code>CLAUDE.global.md</code>、<code>README.md</code>、<code>templates/</code>），两块不碰对方的文件。合并顺序是先 W1 后 W2：每次合并前，派一个 sonnet 审查者钉住 BASE/TIP 审 diff；合并后，主会话重跑测试和 grep 闸门，通过就推送。各项目仓库的迁移本质上是同一套 <code>repo_guard.py fix</code> 跑一遍，命令都是确定的，由主会话按仓库逐个顺序做，不拆子代理，因为每个仓库都要实时盯着停下条件。全局 <code>settings.json</code> 和 SSH 公钥属于用户配置，由主会话自己做。</p>
 
 <h2>七、交接顺序与状态机登记</h2>
-<p>本任务全部是短操作（单仓库迁移 &lt;1 分钟），没有长尾。交接前必须完成的是 S0–S9 的全部判定行；唯一可能遗留的是 S8，取决于 AWS 上有没有会话在。任务 id 拟定为 <code>rules-submodule-1019</code>，登记在正本的 <code>docs/handoff/current.json</code>。<strong>是否登记进状态机，由用户决定</strong>。</p>
+<p>本任务全部是短操作（单仓库迁移 &lt;1 分钟），没有长尾。交接前必须完成的是 S0–S9 的全部判定行；唯一可能遗留的是 S8，取决于 AWS 上有没有会话在。任务 id 拟定为 <code>rules-submodule-1019</code>，登记在正本的 <code>docs/handoff/current.json</code>。<strong>用户 2026-10-19 裁决：不登记进状态机，交接走人工</strong>（原话「不登记，交接走人工」）；因此不写正本 <code>docs/handoff/current.json</code> 的 <code>tasks</code>，S9 的交接改为在收尾汇报里写明。</p>
 <p class="muted">逐文件细节、分配表、runbook、风险与盲区见第二部分。</p>
 
 <h1>第二部分（技术细节，供 agent 追踪）</h1>
