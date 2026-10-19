@@ -409,6 +409,8 @@ def _fix(args, st: State) -> None:
         if r.returncode != 0:
             raise GuardStop("ff_refused", _raw(r))
         emit(f"GUARD_STEP=ff_merge behind={st.behind} PASS")
+        # 快进可能带进远端已登记的 .gitmodules 与子模块 gitlink，重采规则状态再走后续子模块步骤
+        _collect_rules(st, do_fetch=False)
     # ② 领先且有 upstream → 补推
     if st.upstream is not None and st.ahead:
         r = git(["push"], top, TIMEOUT_FETCH)
