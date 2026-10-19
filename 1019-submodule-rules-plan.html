@@ -325,5 +325,31 @@ git status -sb | head -1                       # 不得有 ahead</pre>
 <li>只 <code>git add</code> 逐个路径；全部 commit 立即推送。</li>
 </ul>
 
+
+<h1>实施结果（2026-10-19 追加，不改写上文）</h1>
+<p>开工令：用户「同意修订版，开工」。开工复核 <code>PLAN_CONSISTENCY_REVIEW=PASS base=569be7f findings=2 blocking=0</code>。</p>
+<table>
+<tr><th>阶段</th><th>结果</th></tr>
+<tr><td>S1 / S2</td><td>W1 <code>bc78d8b</code>：<code>SELF_SYNC_TEST=PASS cases=4</code>、<code>GUARD_TEST=PASS cases=14</code>、<code>LINT=PASS</code>；W2 <code>976007e</code>：<code>STATS_REMOVED_DOCS=PASS hits=0</code>、<code>LINT_SUMMARY=PASS pass=4</code></td></tr>
+<tr><td>S3</td><td><code>PRE_MERGE_REVIEW=PASS</code>（W1 findings=7 全 minor；W2 findings=3 全 minor）；合并 <code>102063e</code>、<code>43ff59e</code>（= R）；<code>POST_MERGE_REVIEW=PASS tests=18passed</code>；全仓 <code>STATS_REMOVED=PASS</code>（只剩测试夹具路径 1 处）</td></tr>
+<tr><td>S4</td><td>aspen：hooks 段合并；<code>GLOBAL_SYNC=PASS host=sled-aspen</code>；<code>HOOK_LIVE=PASS host=sled-aspen</code>（无头会话 SessionStart 注入 <code>PUSH_STATE=AHEAD n=1</code>，PostToolUse 在 commit 后注入 <code>PUSH_STATE=AHEAD n=2</code>）</td></tr>
+<tr><td>S5</td><td><code>REPO_MIGRATE=PASS contains_R=yes</code>：/data MotionJEPA（<code>259525a</code>，推送到 hzf）、NFS MotionJEPA（<code>07ab4e7</code>）、NFS policy（<code>2f9cd46</code>，<strong>push=pending_user</strong>，无 upstream）、newtask-v3（<code>e5a963a</code>，<code>.nonexistent</code> 未碰）、coimprovement（<code>d20ff87</code>）</td></tr>
+<tr><td>S6</td><td>vail：删 <code>SubagentStop</code>、加两个 hook（备份 <code>settings.json.bak-20261019</code>）；全局 <code>CLAUDE.md</code> 按模板接入（备份 <code>CLAUDE.md.bak-20261019</code>）；<code>GLOBAL_SYNC=PASS host=sled-vail</code>；<code>HOOK_LIVE=PASS host=sled-vail</code>（SessionStart 实测）。<code>REPO_MIGRATE=PASS</code>：policy v2-motionmem（快进 68 后 <code>b716f8c</code>，删统计 <code>6007f1a</code>）、benchmark NewTask（<code>1d14ae3</code>）、OOD-eval dev（补推 1 + <code>136ec9d</code>）、newtask-v3（快进 24，子模块初始化，无新提交）</td></tr>
+<tr><td>S7</td><td><code>SSH_VAIL_ASPEN=PASS</code>（经别名 <code>ssh sled-aspen</code>，公钥本已存在，未追加）</td></tr>
+<tr><td>S8</td><td><code>AWS=PENDING reason=no_session</code>：带 AWS 主机名的会话全部 offline；向一个疑似 AWS 的会话发三次握手请求，对方回告是 sled-aspen，未操作</td></tr>
+<tr><td>收尾</td><td><code>sync-targets.json</code> 精简（<code>5670a91</code>）；两机全局再回流到 <code>5670a91</code>；本仓库用子模块脚本演练 <code>fix</code>（<code>0a6adfd</code>）</td></tr>
+</table>
+
+<h2>实施中调整</h2>
+<table>
+<tr><th>旧</th><th>新</th><th>理由</th><th>对抗验证</th></tr>
+<tr><td><code>repo_guard.py fix</code> 快进前采集一次状态</td><td>ff 成功后重采规则状态（W3 <code>57a2c14</code>，合并 <code>c2ce8c9</code>，用例 +1 → 15）</td><td>vail newtask-v3 落后且远端已接入时误走 <code>submodule add</code>，STOP <code>submodule_add_failed</code></td><td><code>ADJUST_REVIEW=PASS scale=same</code>；<code>PRE_MERGE_REVIEW=PASS findings=0</code></td></tr>
+<tr><td>S6 假定 vail 全局 <code>CLAUDE.md</code> 已有标记块</td><td>按 README 新机器流程备份后用模板重建再 apply</td><td>现场无 <code>common-global</code> 标记，apply 报错</td><td><code>ADJUST_REVIEW=PASS scale=same</code>（有备份，不算破坏性）</td></tr>
+<tr><td>F 节：vail → aspen 不通，S7 要追加公钥</td><td>经别名可达，第 28 条连通表与结论更正（W4 <code>c802bb8</code>，合并 <code>8c320e7</code>）；第 29 条补步骤失败 STOP 枚举</td><td>此前用完整域名未走别名</td><td>纯事实更正；<code>PRE_MERGE_REVIEW=PASS findings=0</code></td></tr>
+<tr><td>runbook 先 <code>git rm</code> 再 <code>fix</code></td><td>BEHIND 的仓库先撤回暂存删除、快进、再删除（vail policy）</td><td>远端也改了统计文件，暂存删除挡住快进（<code>ff_refused</code>）</td><td>流程顺序调整，无代码改动</td></tr>
+<tr><td>迁移清单含 benchmark-ood</td><td>从 <code>sync-targets.json</code> 删除，不迁移</td><td>vail 上的检出没有 <code>AGENTS.md</code>，从未接入</td><td>—</td></tr>
+</table>
+<p>遗留：NFS policy <code>v2-motionmem-eval-test1017</code> 是否 <code>git push -u</code> 待用户裁决；AWS 三份检出待 AWS 上有会话时执行同一流程；各仓库子模块停在 <code>43ff59e</code>，下次开工由 <code>fix</code> 自动更新到最新。</p>
+
 </main></body>
 </html>
