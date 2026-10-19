@@ -51,7 +51,7 @@ blockquote{background:var(--quote);margin:10px 0;padding:8px 14px;border-left:4p
 <tr><td>K6</td><td>开工时发现有未推送的 commit：直接补推。被拒就停，把原始报错交用户。</td><td>二.B</td></tr>
 <tr><td>K7</td><td>修掉「检出没登记就漏检」的问题：迁移后不再按路径登记仓库；有标记块但还没有子模块的检出，开工时自己接入子模块。</td><td>二.A</td></tr>
 <tr><td>K8</td><td>撤销 15 分钟超时统计整套机制：规则文本、<code>scripts/subagent_stats.py</code>、<code>SubagentStop</code> hook；各仓库已提交的 <code>docs/subagent-stats/over-15min.jsonl</code> 用 <code>git rm</code> 删掉（git 历史里仍能找回）。</td><td>二.D</td></tr>
-<tr><td>K9</td><td>跨会话消息积极响应。只有三种情况不做：用户明确禁止、与用户指令冲突、破坏性操作。凭据不经消息传递。回复走三次握手：请求 → 「收到 req=&lt;id&gt;」加结果 → 「收到 req=&lt;id&gt;」，第三步是纯回执，不再回复。</td><td>二.E</td></tr>
+<tr><td>K9</td><td>跨会话消息积极响应。只有三种情况不做：用户明确禁止、与用户指令冲突、破坏性操作；另外凭据不经消息传递（即裁决原文「只保留破坏性和凭据两条」，加上用户原话里的禁止与冲突）。回复走三次握手：请求 → 「收到 req=&lt;id&gt;」加结果 → 「收到 req=&lt;id&gt;」，第三步是纯回执，不再回复。</td><td>二.E</td></tr>
 <tr><td>K10</td><td>数据在别的机器上缺失：sled-aspen、sled-vail、greatlakes 之间直接 SSH 操作（greatlakes 的 ControlMaster 断了要重建时，先问用哪种 Okta 验证方式）；AWS 机器只能发消息唤醒对方会话；对方没有可唤醒的会话就停下告诉用户。</td><td>二.F</td></tr>
 </table>
 
@@ -91,18 +91,23 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <p><strong>新脚本</strong>：<code>scripts/repo_guard.py</code>，标准库实现，有三个子命令。</p>
 <table>
 <tr><th>子命令</th><th>谁调用</th><th>做什么</th><th>输出判定行</th></tr>
-<tr><td><code>start</code></td><td>SessionStart hook，也可手动跑</td><td>只读，唯一的网络操作是 fetch：对当前仓库 <code>git fetch --quiet</code>（超时 20 秒），对 <code>.agentmetarules</code> 做 <code>git -C .agentmetarules fetch --quiet origin main</code>；计算与 upstream 的 ahead/behind、工作区是否 dirty、子模块落后 <code>origin/main</code> 几个 commit</td><td><code>REPO_SYNC=OK|BEHIND n=|DIVERGED|NO_UPSTREAM|FETCH_FAIL</code><br><code>PUSH_STATE=CLEAN|AHEAD n=|EXEMPT reason=</code><br><code>RULES_SYNC=OK|BEHIND n=|NO_SUBMODULE|NOT_ONBOARDED</code></td></tr>
-<tr><td><code>fix</code></td><td>agent 按第 29 条在开工第一步执行</td><td>依次：① BEHIND 且工作区干净时 <code>git merge --ff-only @{u}</code>；② AHEAD 时裸 <code>git push</code>；③ 有标记块但还没有子模块时，执行 <code>git submodule add -b main &lt;url&gt; .agentmetarules</code> 接入；④ <code>git submodule update --init --remote .agentmetarules</code>；⑤ <code>self-apply</code>；⑥ 有变化就 <code>git add .gitmodules .agentmetarules AGENTS.md CLAUDE.md greatlakes.md</code>（逐个路径添加，只加存在的文件），提交后 push</td><td>同上三行，加 <code>GUARD_FIX=PASS|STOP reason=</code></td></tr>
+<tr><td><code>start</code></td><td>SessionStart hook，也可手动跑</td><td>只读，唯一的网络操作是 fetch：对当前仓库 <code>git fetch --quiet</code>（超时 20 秒），对 <code>.agentmetarules</code> 做 <code>git -C .agentmetarules fetch --quiet origin main</code>；计算与 upstream 的 ahead/behind、工作区是否 dirty、子模块落后 <code>origin/main</code> 几个 commit</td><td><code>REPO_SYNC=OK|BEHIND n=|DIVERGED|NO_UPSTREAM|FETCH_FAIL|DETACHED|NOT_GIT</code><br><code>PUSH_STATE=CLEAN|AHEAD n=|EXEMPT reason=sub_worktree|no_upstream|hold</code><br><code>RULES_SYNC=OK|BEHIND n=|NO_SUBMODULE|NOT_ONBOARDED</code></td></tr>
+<tr><td><code>fix</code></td><td>agent 按第 29 条在开工第一步执行</td><td>先检查 HOLD 文件与 detached（命中即按豁免或停下处理）；然后依次：① BEHIND 时 <code>git merge --ff-only @{u}</code>（git 拒绝即停）；② AHEAD 且有 upstream 时裸 <code>git push</code>；③ 有标记块但还没有子模块时，执行 <code>git submodule add -b main &lt;url&gt; .agentmetarules</code> 接入；④ <code>git submodule update --init --remote .agentmetarules</code>；⑤ <code>self-apply</code>；⑥ 有变化就 <code>git add .gitmodules .agentmetarules AGENTS.md CLAUDE.md greatlakes.md</code>（逐个路径添加，只加存在的文件）；带 <code>--include-staged-removal &lt;路径&gt;</code> 时，把该路径下已暂存的删除一并纳入这个 commit（其他已暂存内容存在时停下，<code>reason=foreign_staged</code>）；提交后有 upstream 就 push</td><td>同上三行，加 <code>GUARD_FIX=PASS|STOP reason=</code>（STOP 取值见下）</td></tr>
 <tr><td><code>post-commit</code></td><td>PostToolUse hook（匹配 Bash）</td><td>从 stdin 读 hook 输入 JSON；<code>tool_input.command</code> 匹配 <code>\bgit\b[^|;&amp;]*\bcommit\b</code> 时检查 ahead；有未推送 commit 就输出 <code>additionalContext</code> 提醒立即 push</td><td><code>PUSH_STATE=AHEAD n=</code> 或不输出</td></tr>
 </table>
-<p><strong>停下的条件</strong>（<code>fix</code> 输出 <code>GUARD_FIX=STOP</code>，不做后续步骤，原文交用户）：DIVERGED；BEHIND 但工作区 dirty，导致快进被挡；push 被拒；规则文件（三份 md、<code>.gitmodules</code>）有别人的在途改动；仓库处在冻结期（第 12 条，按第 27 条 <code>freeze.active</code> 判断）。工作区里其他文件有在途改动时，只要不挡快进，就照常对齐，提交时绕开这些文件（第 11 条）。</p>
-<p><strong>豁免</strong>（<code>PUSH_STATE=EXEMPT</code>）：分支名匹配 <code>worktree-agent-*</code>（子代理 worktree）；没有 upstream 且不是本会话新建的分支，标 <code>EXEMPT reason=no_upstream</code>，agent 问用户一次是否 <code>git push -u</code>，这项沿用第 11 条原有的「没有 upstream」例外。</p>
+<p><strong>停下的条件</strong>（<code>fix</code> 输出 <code>GUARD_FIX=STOP reason=&lt;diverged|ff_refused|push_rejected|rules_dirty|detached&gt;</code>，不做后续步骤，git 原文附在后面）：DIVERGED；<code>git merge --ff-only</code> 被 git 拒绝（工作区改动会被覆盖，即 K5 的「挡住更新」）；push 被拒；规则文件（三份 md、<code>.gitmodules</code>）有别人的在途改动；HEAD 处于 detached。工作区其他文件有改动时照样尝试快进，git 不拒绝就照常对齐，提交时绕开这些文件（第 11 条）。冻结期用下面的 <code>hold</code> 豁免处理，不靠读 <code>current.json</code>。</p>
+<p><strong>豁免</strong>（<code>PUSH_STATE=EXEMPT</code>）：</p>
+<ul>
+<li><code>reason=sub_worktree</code>：分支名匹配 <code>worktree-agent-*</code>（子代理 worktree），不提交不推送。</li>
+<li><code>reason=no_upstream</code>：当前分支没有 upstream。<code>fix</code> 照常提交，不推送，输出 <code>GUARD_FIX=PASS</code>；agent 问用户一次是否 <code>git push -u</code>（沿用第 11 条原有的「没有 upstream」例外）。<code>start</code> 同时输出 <code>REPO_SYNC=NO_UPSTREAM</code> 与 <code>PUSH_STATE=EXEMPT reason=no_upstream</code>。</li>
+<li><code>reason=hold</code>：存在本地标记文件 <code>$(git rev-parse --git-dir)/AGENTMETARULES_HOLD</code>（在 <code>.git</code> 里，不进版本库）。两种情况由主会话写入：① 合并后审查 <code>POST_MERGE_REVIEW=FAIL</code>，写入合并提交 sha 与原因；② 进入第 12 条冻结期，写入 <code>freeze</code> 与冻结锚点 sha。<code>fix</code> 看到它就不提交、不推送、不快进，只输出三行判定和文件内容；用户裁决后由主会话删除该文件。</li>
+</ul>
 <p><strong>hook 挂法</strong>（全局 <code>~/.claude/settings.json</code>，只合并 <code>hooks</code> 段，不动其他键）：</p>
 <pre>"hooks": {
   "SessionStart": [{"hooks": [{"type": "command", "timeout": 60,
     "command": "s=\"$CLAUDE_PROJECT_DIR/.agentmetarules/scripts/repo_guard.py\"; [ -f \"$s\" ] || s=\"&lt;本机正本 clone&gt;/scripts/repo_guard.py\"; cd \"$CLAUDE_PROJECT_DIR\" &amp;&amp; uv run --no-project --quiet python \"$s\" start"}]}],
   "PostToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "timeout": 30,
-    "command": "s=\"$CLAUDE_PROJECT_DIR/.agentmetarules/scripts/repo_guard.py\"; [ -f \"$s\" ] || s=\"&lt;本机正本 clone&gt;/scripts/repo_guard.py\"; uv run --no-project --quiet python \"$s\" post-commit"}]}]
+    "command": "s=\"$CLAUDE_PROJECT_DIR/.agentmetarules/scripts/repo_guard.py\"; [ -f \"$s\" ] || s=\"&lt;本机正本 clone&gt;/scripts/repo_guard.py\"; cd \"$CLAUDE_PROJECT_DIR\" &amp;&amp; uv run --no-project --quiet python \"$s\" post-commit"}]}]
 }</pre>
 <p>SessionStart 的 stdout 会进入会话上下文，agent 第一条回复把三行判定行照抄出来，再执行 <code>fix</code>。hook 本身<strong>不写仓库</strong>：自动提交和推送放在 agent 可见、可停的 <code>fix</code> 步骤里做，避免会话一启动就在用户没看到的情况下改历史。Codex 没有 hook，只按第 29 条在开工时手动跑 <code>start</code> 和 <code>fix</code>，提交后手动跑 <code>git status -sb</code>。</p>
 <p><span class="warn">⚠ 陷阱</span>：不在 git 仓库里的目录，<code>start</code> 只输出 <code>REPO_SYNC=NOT_GIT</code> 并以退出码 0 结束；hook 内部任何异常都输出一行 <code>GUARD_ERROR=</code> 并以退出码 0 结束，不能阻断会话。PostToolUse 对每次 Bash 调用都会触发，所以先用正则过滤，不匹配就立即退出（目标 &lt;50 ms），且不做 fetch。</p>
@@ -124,7 +129,7 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <tr><td><code>README.md</code>「新机器接入」第 3 步挂 <code>SubagentStop</code> hook</td><td>改为挂 SessionStart / PostToolUse 两个 hook（见 B）</td></tr>
 <tr><td><code>scripts/subagent_stats.py</code></td><td><code>git rm</code></td></tr>
 <tr><td>vail 全局 <code>settings.json</code> 的 <code>SubagentStop</code> 段（第 26 行起；aspen 上没挂）与 <code>~/.claude/subagent-stats/</code></td><td>删 hook 段；统计目录不在 git 里，<strong>不删</strong>，原样留在 vail 本机（不在 K8 的「仓库内文件」范围内）</td></tr>
-<tr><td>各仓库 <code>docs/subagent-stats/over-15min.jsonl</code>（实测：/data MotionJEPA 17 行、NFS MotionJEPA 44 行、NFS policy 1 行、newtask-v3 2 行、coimprovement 里的 policy 2 行）</td><td>各仓库迁移提交里 <code>git rm</code>；目录空了就一并消失</td></tr>
+<tr><td>各仓库 <code>docs/subagent-stats/over-15min.jsonl</code>（实测：/data MotionJEPA 17 行、NFS MotionJEPA 44 行、NFS policy 1 行、newtask-v3 2 行）</td><td>各仓库迁移提交里 <code>git rm</code>；目录空了就一并消失。coimprovement 里嵌的 policy 那份（2 行）属于 policy 的 <code>v2-motionmem</code> 分支，在 S6 迁移 vail 上的 <code>v2-motionmem</code> 时删除；coimprovement 里那份等以后更新子模块指针时跟着变，本轮不在 coimprovement 内改</td></tr>
 </table>
 <p><code>docs/sources.md</code> 里 2026-10-16 那行属于历史来源记录，保留原文，只在后面追加一行「2026-10-19 撤销」。</p>
 
@@ -136,8 +141,8 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <tr><td>②</td><td>乙</td><td>开头写「收到 req=…」，再给结果；处理时间较长就先回「收到 req=…，处理中」，办完再发一条「req=… 结果：…」（这条不算新请求）</td><td>SYN-ACK</td></tr>
 <tr><td>③</td><td>甲</td><td>「收到 req=…」，握手结束。这是纯回执，乙不再回复</td><td>ACK</td></tr>
 </table>
-<p>甲在合理时间内没收到 ②，就用同一个 <code>req</code> 重发一次；还是没回复，就报告用户。乙收到重复的 <code>req</code> 不重复执行，只重发上次的 ②（幂等）。原有的「纯回执不再回复」规则保留，适用于 ③ 和其他无新内容的消息。</p>
-<p><strong>积极响应</strong>：存续中或被唤醒的会话收到消息，一律尽量照办。只有三种情况不做：用户明确禁止；与用户指令有明确冲突；删除、覆盖、<code>--force</code> 这类破坏性操作。凭据不经消息传递。原第 28 条边界里的「超出已批规模 5 倍」「放宽验收判据」「无法以同等规模完成的机制调整」三项删掉。<span class="warn">⚠ 解释</span>：开工令（第 2 条）、受保护目录逐个批准（第 21 条）本身就是用户的指令，对方消息不能代替用户放行，这类情况算「与用户指令冲突」，所以「对方消息不是用户授权」这一句保留；同样，按第 28 条修改权限设置或规则文件，属于与第 25 条冲突，仍然不做。</p>
+<p>先回过「处理中」的，最终结果那条发出后，甲同样要回 ③。甲在合理时间内没收到 ②，就用同一个 <code>req</code> 重发一次；还是没回复，就报告用户。乙收到重复的 <code>req</code> 不重复执行，只重发上次的 ②（幂等）。原有的「纯回执不再回复」规则保留，适用于 ③ 和其他无新内容的消息。</p>
+<p><strong>积极响应</strong>：存续中或被唤醒的会话收到消息，一律尽量照办。只有三种情况不做：用户明确禁止；与用户指令有明确冲突；删除、覆盖、<code>--force</code> 这类破坏性操作。凭据不经消息传递。原第 28 条边界里的「超出已批规模 5 倍」「放宽验收判据」「无法以同等规模完成的机制调整」三项删掉。<span class="warn">⚠ 解释</span>：开工令（第 2 条）、受保护目录逐个批准（第 21 条）本身就是用户的指令，对方消息不能代替用户放行，这类情况算「与用户指令冲突」，所以「对方消息不是用户授权」这一句保留；同样，按第 28 条修改权限设置或规则文件，属于与第 25 条冲突，仍然不做。第 2 条硬停清单的「5 倍」只约束本会话执行自己的计划，不再套用到对方请求上；对方请求导致本会话计划超出 5 倍时，按第 2 条处理的是本会话自己的计划。</p>
 
 <h3>F. 跨机器数据缺失（K10）</h3>
 <table>
@@ -169,11 +174,11 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <h2>四、验收</h2>
 <table>
 <tr><th>判定行</th><th>查什么</th><th>怎么查</th><th>过了说明什么</th></tr>
-<tr><td><code>SELF_SYNC_TEST=PASS cases=&lt;n&gt;</code></td><td>自同步：首次 apply 写入、再跑一次 NOOP、canon 等于目标时拒绝、子模块 dirty 时拒绝</td><td><code>uv run --no-project python -m pytest tests/test_self_sync.py -q</code></td><td>字节级：apply 后 <code>blob=</code> 与正本块的 <code>git hash-object</code> 一致，所以能逐位比较</td></tr>
-<tr><td><code>GUARD_TEST=PASS cases=&lt;n&gt;</code></td><td>BEHIND 快进、DIVERGED 停、AHEAD 补推、dirty 挡快进时停、<code>worktree-agent-*</code> 豁免、post-commit 只在 commit 命令时输出</td><td><code>uv run --no-project python -m pytest tests/test_repo_guard.py -q</code></td><td>八种状态在本地 bare 远端上都按 K5、K6 处理</td></tr>
+<tr><td><code>SELF_SYNC_TEST=PASS cases=4</code></td><td>自同步：首次 apply 写入、再跑一次 NOOP、canon 等于目标时拒绝、子模块 dirty 时拒绝</td><td><code>uv run --no-project python -m pytest tests/test_self_sync.py -q</code></td><td>字节级：apply 后 <code>blob=</code> 与正本块的 <code>git hash-object</code> 一致，所以能逐位比较</td></tr>
+<tr><td><code>GUARD_TEST=PASS cases=14</code></td><td>1.3 列出的 14 例：快进 / 补推 / 分叉停 / 两种 dirty / 规则文件 dirty / no_upstream / sub_worktree / hold / detached / push 被拒 / 暂存删除合并 / post-commit 两例</td><td><code>uv run --no-project python -m pytest tests/test_repo_guard.py -q</code></td><td>每种状态在本地 bare 远端上都按 K5、K6 与豁免规则处理</td></tr>
 <tr><td><code>STATS_REMOVED=PASS hits=0</code></td><td>正本里不再有统计机制</td><td><code>git grep -n -E 'over-15min|subagent_stats|SubagentStop|子代理超时统计|900000' -- . ':!docs/sources.md' ':!1019-submodule-rules-plan.html'</code> 无输出</td><td>K8 在正本里撤干净（历史记录和本计划除外）</td></tr>
 <tr><td><code>LINT=PASS</code></td><td>正本三份源文件格式</td><td><code>sync_rules.py lint</code></td><td>标记块完好，回流不会出错</td></tr>
-<tr><td><code>REPO_MIGRATE=PASS repo=&lt;名&gt; branch=&lt;分支&gt; sub=&lt;sha&gt;</code></td><td>每个迁移的仓库和分支</td><td><code>git submodule status .agentmetarules</code> 的 sha 等于 <code>git ls-remote &lt;url&gt; refs/heads/main</code>；<code>self-check</code> 输出 <code>SYNC_SUMMARY=PASS</code>；<code>git status -sb</code> 首行没有 ahead；<code>docs/subagent-stats</code> 不存在</td><td>该检出已经钉在最新正本、规则一致、全部推送</td></tr>
+<tr><td><code>REPO_MIGRATE=PASS repo=&lt;名&gt; branch=&lt;分支&gt; sub=&lt;sha&gt; contains_R=yes push=done|pending_user</code></td><td>每个迁移的仓库和分支</td><td>正本合并后 HEAD 记为 <code>R</code>（S3）；<code>git -C .agentmetarules merge-base --is-ancestor R HEAD</code> 退出码 0（子模块包含 R；迁移期间正本还会因 <code>sync-targets.json</code>、<code>sources.md</code> 继续前进，所以不要求等于 main 最新）；<code>self-check</code> 输出 <code>SYNC_SUMMARY=PASS</code>；<code>git status -sb</code> 首行没有 ahead；<code>docs/subagent-stats</code> 不存在</td><td>该检出已经钉在包含本轮规则的正本版本、规则一致、已推送（无 upstream 的仓库 <code>push=pending_user</code>，见 B8 裁决）</td></tr>
 <tr><td><code>HOOK_LIVE=PASS host=&lt;机器&gt;</code></td><td>真会话里 hook 生效</td><td>新开一个无头会话 <code>claude -p "原样输出你上下文里的 REPO_SYNC 行"</code>，看回复里有没有 <code>REPO_SYNC=</code>；再造一个测试 commit 不推送，确认 post-commit 提醒出现（在 scratch 临时仓库里做）</td><td>K3 的两道检查在宿主里真实触发，不只是脚本能跑</td></tr>
 <tr><td><code>GLOBAL_SYNC=PASS host=&lt;机器&gt; src=&lt;sha&gt;</code></td><td>各机器全局 <code>CLAUDE.md</code></td><td><code>sync_rules.py check --repo global-claude</code></td><td>未接入正本的目录也拿到新规则</td></tr>
 <tr><td><code>SSH_VAIL_ASPEN=PASS</code></td><td>vail → aspen 打通</td><td>在 vail 上跑 <code>ssh -o BatchMode=yes sled-aspen.eecs.umich.edu hostname</code></td><td>K10 的三台互通成立</td></tr>
@@ -187,7 +192,7 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <tr><td>S2</td><td>正本规则文本：<code>AGENTS.md</code>/<code>CLAUDE.md</code>/<code>CLAUDE.global.md</code>/<code>README.md</code>/<code>templates</code></td><td><code>STATS_REMOVED=PASS</code>、<code>LINT=PASS</code></td></tr>
 <tr><td>S3</td><td>合并 S1、S2，推送正本；正本 HEAD 记为 <code>R</code></td><td><code>POST_MERGE_REVIEW=PASS</code></td></tr>
 <tr><td>S4</td><td>本机全局：aspen 的 <code>settings.json</code> 加两个 hook，<code>apply --repo global-claude</code></td><td><code>GLOBAL_SYNC=PASS host=sled-aspen</code>、<code>HOOK_LIVE=PASS host=sled-aspen</code></td></tr>
-<tr><td>S5</td><td>aspen 本机仓库迁移（见第二部分清单），每个仓库一个 commit 并推送；每迁完一个就从 <code>sync-targets.json</code> 删掉对应条目</td><td>每个仓库 <code>REPO_MIGRATE=PASS</code></td></tr>
+<tr><td>S5</td><td>aspen 本机仓库迁移（见第二部分清单），每个仓库一个 commit 并推送（无 upstream 的只提交，等用户裁决）；每迁完一个就从 <code>sync-targets.json</code> 删掉对应条目</td><td>每个仓库 <code>REPO_MIGRATE=PASS</code></td></tr>
 <tr><td>S6</td><td>vail（SSH 直接操作）：全局 hook，删 <code>SubagentStop</code>，global apply，仓库迁移</td><td><code>GLOBAL_SYNC=PASS host=sled-vail</code>、<code>HOOK_LIVE=PASS host=sled-vail</code>、各仓库 <code>REPO_MIGRATE=PASS</code></td></tr>
 <tr><td>S7</td><td>vail → aspen 公钥：把 vail 的 <code>~/.ssh/id_*.pub</code> 追加进 aspen 的 <code>~/.ssh/authorized_keys</code>（只追加，不覆盖）</td><td><code>SSH_VAIL_ASPEN=PASS</code></td></tr>
 <tr><td>S8</td><td>AWS：用 ListAgents 找 AWS 上的会话，按三次握手发请求，请它执行同样的 S4–S6 步骤；没有可唤醒会话就在汇报里列为待办</td><td>对方 ② 里回传的判定行，或 <code>AWS=PENDING reason=no_session</code></td></tr>
@@ -198,8 +203,11 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <p>正本改动拆成两块，并行做，各自在独立 worktree 里：<strong>W1</strong> 管脚本和测试（<code>scripts/</code>、<code>tests/</code>），<strong>W2</strong> 管规则文本（<code>AGENTS.md</code>、<code>CLAUDE.md</code>、<code>CLAUDE.global.md</code>、<code>README.md</code>、<code>templates/</code>），两块不碰对方的文件。合并顺序是先 W1 后 W2：每次合并前，派一个 sonnet 审查者钉住 BASE/TIP 审 diff；合并后，主会话重跑测试和 grep 闸门，通过就推送。各项目仓库的迁移本质上是同一套 <code>repo_guard.py fix</code> 跑一遍，命令都是确定的，由主会话按仓库逐个顺序做，不拆子代理，因为每个仓库都要实时盯着停下条件。全局 <code>settings.json</code> 和 SSH 公钥属于用户配置，由主会话自己做。</p>
 
 <h2>七、交接顺序与状态机登记</h2>
-<p>本任务全部是短操作（单仓库迁移 &lt;1 分钟），没有长尾。交接前必须完成的是 S0–S9 的全部判定行；唯一可能遗留的是 S8，取决于 AWS 上有没有会话在。任务 id 拟定为 <code>rules-submodule-1019</code>，登记在正本的 <code>docs/handoff/current.json</code>。<strong>用户 2026-10-19 裁决：不登记进状态机，交接走人工</strong>（原话「不登记，交接走人工」）；因此不写正本 <code>docs/handoff/current.json</code> 的 <code>tasks</code>，S9 的交接改为在收尾汇报里写明。</p>
+<p>本任务全部是短操作（单仓库迁移 &lt;1 分钟），没有长尾。交接前必须完成的是 S0–S9 的全部判定行；唯一可能遗留的是 S8，取决于 AWS 上有没有会话在。<strong>用户 2026-10-19 裁决：不登记进状态机，交接走人工</strong>（原话「不登记，交接走人工」）；因此不写正本 <code>docs/handoff/current.json</code> 的 <code>tasks</code>，S9 的交接改为在收尾汇报里写明。</p>
 <p class="muted">逐文件细节、分配表、runbook、风险与盲区见第二部分。</p>
+
+<h2>八、修订记录</h2>
+<p>2026-10-19 开工审查 <code>PLAN_CONSISTENCY_REVIEW=FAIL base=b106aea findings=14 blocking=9</code>（sonnet 只读子代理）。9 条阻断项经用户裁决「9 条阻断项全部按推荐改法修订」：B1 验收改为子模块包含 R；B2/B6 新增 <code>AGENTMETARULES_HOLD</code> 本地标记文件，覆盖合并后审查 FAIL 与冻结期；B3 内嵌 policy 的统计文件改到 S6 删；B4 <code>--include-staged-removal</code> 三处统一；B5 快进统一为「尝试，git 拒绝即停」；B6 detached 写进规格并补测试；B7 子模块 dirty 守卫与测试；B8 无 upstream 只提交不推送、验收 <code>push=pending_user</code>；B9 onboard、land_rules_commit 声明不改。5 条文字统一直接改：七节旧句、K9 边界措辞与 5 倍关系、runbook 路径与 PostToolUse 的 cd、判定行枚举与用例数、STOP 的批次处置。</p>
 
 <h1>第二部分（技术细节，供 agent 追踪）</h1>
 
@@ -208,7 +216,7 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <li><strong>R1</strong>：正本仓库自己不加 <code>.agentmetarules</code> 子模块；<code>self-apply</code> 遇到 canon 等于目标必须拒绝。</li>
 <li><strong>R2</strong>：迁移不碰任何仓库里别人的在途改动；三份规则 md 或 <code>.gitmodules</code> 有别人的改动时，该仓库停下，不迁移。</li>
 <li><strong>R3</strong>：禁止 <code>git push --force</code>、rebase、<code>reset --hard</code>；push 被拒即停。</li>
-<li><strong>R4</strong>：冻结期仓库（<code>current.json</code> 里 <code>freeze.active=true</code>）不在冻结 HEAD 上提交，按第 25 条切独立 worktree 分支，冻结结束后再合并。</li>
+<li><strong>R4</strong>：冻结期仓库（主会话进入冻结时写入 <code>AGENTMETARULES_HOLD</code>，见机制 B 的 <code>hold</code> 豁免）不在冻结 HEAD 上提交，按第 25 条切独立 worktree 分支，冻结结束后再合并。</li>
 <li><strong>R5</strong>：全局 <code>settings.json</code> 只合并 <code>hooks</code> 段，写后用 <code>uv run --no-project python -c 'import json,sys;json.load(open(sys.argv[1]))'</code> 读回校验；vail 的 <code>~/.claude/subagent-stats/</code> 目录不删。</li>
 <li><strong>R6</strong>：hook 脚本在任何错误下退出码都是 0，绝不阻断会话。</li>
 <li><strong>R7</strong>：<code>authorized_keys</code> 只追加一行，追加前 <code>grep -F</code> 去重，不改其他行。</li>
@@ -219,19 +227,19 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <h3>1.1 <code>scripts/sync_rules.py</code>（W1）</h3>
 <ul>
 <li><code>build_parser</code>：新增子命令 <code>self-check</code>、<code>self-apply</code>，参数 <code>--root</code>（默认 <code>.</code>）、<code>--allow-dirty</code>。</li>
-<li>新函数 <code>load_self_config(root)</code>：canon = <code>{path: root/.agentmetarules, branch: None, files: 正本固定映射}</code>，版本用 <code>git -C canon rev-parse HEAD</code>，不走 <code>refs/heads/&lt;branch&gt;</code>，因为子模块是 detached HEAD；target = <code>{name: "self", path: root, files: 扫描根目录三份 md 的 BEGIN 行得出}</code>。</li>
-<li>守卫：<code>os.path.realpath(root) == os.path.realpath(canon 顶层)</code>，或 root 里不存在 <code>.agentmetarules/.git</code> 时，输出 <code>SELF_SYNC=FAIL reason=…</code>，退出码 <code>EXIT_FAIL</code>。</li>
+<li>新函数 <code>load_self_config(root)</code>：canon = <code>{path: root/.agentmetarules, branch: None, files: 正本固定映射}</code>，版本用 <code>git -C canon rev-parse HEAD</code>，不走 <code>refs/heads/&lt;branch&gt;</code>，因为子模块是 detached HEAD；target = <code>{name: "self", path: root, files: 扫描根目录三份 md 的 BEGIN 行得出}</code>；正本固定映射为 <code>AGENTS.md→common-agents</code>、<code>CLAUDE.md→common-claude</code>、<code>greatlakes.md→common-greatlakes</code>，<strong>不含</strong> <code>common-global</code>（全局配置仍走 <code>apply --repo global-claude</code>）。</li>
+<li>守卫：<code>os.path.realpath(root) == os.path.realpath(canon 顶层)</code>（<code>reason=canon_is_target</code>），或 root 里不存在 <code>.agentmetarules/.git</code>（<code>reason=no_submodule</code>），或子模块工作区不干净（沿用现有 <code>_open_canon(need_clean=True)</code>，<code>reason=canon_dirty</code>）时，输出 <code>SELF_SYNC=FAIL reason=…</code>，退出码 <code>EXIT_FAIL</code>；<code>--allow-dirty</code> 只放行 <code>canon_dirty</code> 这一项。</li>
 <li><code>cmd_self_check</code> / <code>cmd_self_apply</code> 复用现有的 <code>cmd_check</code> / <code>cmd_apply</code> 内核，输出额外加 <code>MODE=self</code>。现有的 <code>check</code>/<code>apply</code> 行为不变（global-claude 仍然走它）。</li>
 </ul>
 <h3>1.2 <code>scripts/repo_guard.py</code>（W1，新建）</h3>
 <ul>
 <li>只用标准库（<code>subprocess</code>、<code>json</code>、<code>re</code>、<code>sys</code>）；所有 git 调用带 <code>timeout</code>，fetch 20 秒，其他 10 秒。</li>
 <li><code>start</code>：<code>git rev-parse --show-toplevel</code> 失败 → <code>REPO_SYNC=NOT_GIT</code>；<code>git fetch --quiet</code> 失败 → <code>REPO_SYNC=FETCH_FAIL</code>，但继续用本地 ref 计算；<code>git rev-list --left-right --count HEAD...@{u}</code> 得到 ahead/behind；<code>.agentmetarules</code> 存在时 <code>git -C .agentmetarules fetch --quiet origin main</code>，再算 <code>rev-list --count HEAD..origin/main</code>；不存在但根目录 md 有 <code>AGENTMETARULES:BEGIN common-</code> 行 → <code>RULES_SYNC=NOT_ONBOARDED</code>；都没有 → <code>NO_SUBMODULE</code>。</li>
-<li><code>fix</code>：按机制 B 的 ①–⑥ 顺序执行，每步失败都输出 <code>GUARD_FIX=STOP reason=&lt;步骤&gt;</code> 并附 git 原文；commit 信息用 <code>--message-file</code> 传入，默认 subject 为 <code>docs: 规则子模块更新到 &lt;短 sha&gt;</code>（项目体例不是 <code>docs:</code> 的仓库，用 <code>--subject-prefix</code> 覆盖），body 写前后 sha、改动文件、<code>SYNC_SUMMARY</code> 行，加上 Co-Authored-By 行。</li>
-<li><code>post-commit</code>：读 stdin JSON；<code>tool_name != "Bash"</code> 或命令不匹配正则就静默退出；匹配时算 ahead，大于 0 就打印 <code>{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"PUSH_STATE=AHEAD n=&lt;n&gt; branch=&lt;b&gt;：按第 29 条立即 git push"}}</code>；分支名匹配 <code>worktree-agent-*</code> 时不输出。</li>
+<li><code>fix</code>：先查 <code>AGENTMETARULES_HOLD</code>（存在 → <code>PUSH_STATE=EXEMPT reason=hold</code>，打印内容，退出码 0，不做任何写操作）与 detached（→ <code>STOP reason=detached</code>）；再按机制 B 的 ①–⑥ 顺序执行，每步失败都输出 <code>GUARD_FIX=STOP reason=&lt;diverged|ff_refused|push_rejected|rules_dirty|foreign_staged|detached&gt;</code> 并附 git 原文；无 upstream 时只提交不推送，输出 <code>PUSH_STATE=EXEMPT reason=no_upstream</code>；参数 <code>--subject-prefix</code>、<code>--include-staged-removal &lt;路径&gt;</code>（可重复）；commit 信息用 <code>--message-file</code> 传入，默认 subject 为 <code>docs: 规则子模块更新到 &lt;短 sha&gt;</code>（项目体例不是 <code>docs:</code> 的仓库，用 <code>--subject-prefix</code> 覆盖），body 写前后 sha、改动文件、<code>SYNC_SUMMARY</code> 行，加上 Co-Authored-By 行。</li>
+<li><code>post-commit</code>：读 stdin JSON；<code>tool_name != "Bash"</code> 或命令不匹配正则就静默退出；匹配时算 ahead，大于 0 就打印 <code>{"hookSpecificOutput":{"hookEventName":"PostToolUse","additionalContext":"PUSH_STATE=AHEAD n=&lt;n&gt; branch=&lt;b&gt;：按第 29 条立即 git push"}}</code>；分支名匹配 <code>worktree-agent-*</code> 或存在 HOLD 文件时不输出。</li>
 </ul>
 <h3>1.3 测试（W1）</h3>
-<p><code>tests/test_self_sync.py</code>：在 <code>tmp_path</code> 里 <code>git init --bare canon.git</code>，从正本当前 HEAD 推一份进去；建项目仓库，用 <code>-c protocol.file.allow=always submodule add file://…</code> 接入，写入一份只含旧版块的 <code>AGENTS.md</code>；断言 <code>self-apply</code> 后块等于正本块、再跑一次返回 <code>EXIT_NOOP</code>、canon 自身作 root 时 FAIL。<code>tests/test_repo_guard.py</code>：用 bare 远端加两个 clone 构造 BEHIND、AHEAD、DIVERGED、dirty、no_upstream、<code>worktree-agent-x</code> 六种状态，外加 post-commit 的命中和不命中两例。</p>
+<p><code>tests/test_self_sync.py</code>：在 <code>tmp_path</code> 里 <code>git init --bare canon.git</code>，从正本当前 HEAD 推一份进去；建项目仓库，用 <code>-c protocol.file.allow=always submodule add file://…</code> 接入，写入一份只含旧版块的 <code>AGENTS.md</code>；断言 <code>self-apply</code> 后块等于正本块、再跑一次返回 <code>EXIT_NOOP</code>、canon 自身作 root 时 FAIL、子模块里改一个文件后 FAIL 且 <code>--allow-dirty</code> 放行，共 4 例。<code>tests/test_repo_guard.py</code>：用 bare 远端加两个 clone 构造十种状态：BEHIND 快进、AHEAD 补推、DIVERGED 停、无关文件 dirty 但快进成功、dirty 挡快进停、规则文件 dirty 停、no_upstream 只提交不推、<code>worktree-agent-x</code> 豁免、HOLD 文件豁免、detached 停；外加 push 被拒（远端设 <code>receive.denyNonFastForwards</code> 并抢先推一个提交）停、<code>--include-staged-removal</code> 合进同一 commit、post-commit 命中和不命中两例，共 14 例。</p>
 <h3>1.4 规则文本（W2）</h3>
 <ul>
 <li><code>AGENTS.md</code> 第 25 条「同步机制」：标记块副本保留；来源改为子模块 <code>.agentmetarules</code>；<code>sync-targets.json</code> 只登记 <code>global-claude</code>；「每次开工核对同步」改为指向第 29 条；「全局配置也是回流目标」保留。</li>
@@ -247,7 +255,7 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <tr><th>机器</th><th>检出</th><th>分支 / upstream</th><th>现状（2026-10-19）</th><th>特别处理</th></tr>
 <tr><td>aspen</td><td><code>/data/hongzefu/MotionJEPA</code></td><td>v7.0-mixed8 / hzf/v7.0-mixed8</td><td>干净；块停在 5f3d5d7；统计文件 17 行</td><td>删「不继承自动推送」覆盖项；commit 体例 <code>docs:</code>；push 走 upstream <code>hzf</code>（origin 指向 YinpeiDai，不推 origin）</td></tr>
 <tr><td>aspen</td><td><code>/nfs/…/MotionJEPA</code></td><td>v6.2-minimal-repo / origin</td><td>干净；块是 bdb8e02；统计文件 44 行</td><td>NFS 上 uv 操作设 <code>UV_LINK_MODE=copy</code>；vail 和 aspen 共用这份检出，只在一侧做</td></tr>
-<tr><td>aspen</td><td><code>/nfs/…/robomme_policy_learning_MotionJEPA</code></td><td>v2-motionmem-eval-test1017 / <strong>无 upstream</strong></td><td>干净；统计文件 1 行；已有 <code>third_party/robomme_benchmark</code> 子模块</td><td>没有 upstream → 迁移提交后问用户一次是否 <code>git push -u</code>；追加 <code>.gitmodules</code> 时不动已有的那段</td></tr>
+<tr><td>aspen</td><td><code>/nfs/…/robomme_policy_learning_MotionJEPA</code></td><td>v2-motionmem-eval-test1017 / <strong>无 upstream</strong></td><td>干净；统计文件 1 行；已有 <code>third_party/robomme_benchmark</code> 子模块</td><td>没有 upstream → <code>fix</code> 只提交不推送（<code>PUSH_STATE=EXEMPT reason=no_upstream</code>），问用户一次是否 <code>git push -u</code>，验收记 <code>push=pending_user</code>；追加 <code>.gitmodules</code> 时不动已有的那段</td></tr>
 <tr><td>aspen</td><td><code>/data/hongzefu/robomme_benchmark_newtask-v3-MotionJepa1006</code></td><td>同名 / origin</td><td><code>?? .nonexistent</code>；统计文件 2 行</td><td>R8；文件只有 AGENTS/CLAUDE，没有 greatlakes</td></tr>
 <tr><td>aspen</td><td><code>/data/hongzefu/motionjepa-coimprovement</code></td><td>main / origin</td><td>干净；已有 3 个子模块</td><td>只迁它自己根目录；内嵌的 MotionJEPA（5f3d5d7）和 policy（behind 3、5f3d5d7）不在这里改，由主检出的分支推进后，再在 coimprovement 里按它自己的流程更新子模块指针</td></tr>
 <tr><td>vail</td><td><code>/data/hongzefu/robomme_policy_learning_MotionJEPA</code></td><td>v2-motionmem</td><td>S6 时现场核实</td><td>—</td></tr>
@@ -263,6 +271,7 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <tr><th>编号</th><th>目标</th><th>可写文件</th><th>禁触</th><th>依赖 / 合并顺序</th><th>验收（在 worktree 内跑）</th><th>资源</th></tr>
 <tr><td>W1</td><td>自同步模式、<code>repo_guard.py</code>、测试、删除 <code>subagent_stats.py</code></td><td><code>scripts/sync_rules.py</code>、<code>scripts/repo_guard.py</code>、<code>scripts/subagent_stats.py</code>（删）、<code>tests/test_self_sync.py</code>、<code>tests/test_repo_guard.py</code></td><td>所有 <code>*.md</code>、<code>sync-targets.json</code>、正本主检出</td><td>无依赖；第 1 个合并</td><td><code>uv run --no-project --with pytest python -m pytest tests -q</code> → <code>SELF_SYNC_TEST=PASS</code>、<code>GUARD_TEST=PASS</code>；<code>sync_rules.py lint</code> → <code>LINT=PASS</code></td><td>CPU，&lt;1 分钟；opus，<code>isolation: worktree</code></td></tr>
 <tr><td>W2</td><td>规则文本</td><td><code>AGENTS.md</code>、<code>CLAUDE.md</code>、<code>CLAUDE.global.md</code>、<code>README.md</code>、<code>templates/AGENTS.project.md</code>、<code>templates/CLAUDE.project.md</code>、<code>templates/greatlakes.project.md</code>、<code>templates/CLAUDE.global.md</code>、<code>templates/CLAUDE.global.macbook.md</code></td><td><code>scripts/</code>、<code>tests/</code>、<code>sync-targets.json</code></td><td>接口契约：判定行名称和子命令名以本计划 B 节为准；第 2 个合并</td><td><code>STATS_REMOVED=PASS</code> 的 grep；<code>sync_rules.py lint</code>；<code>git diff --check</code></td><td>CPU；opus，<code>isolation: worktree</code></td></tr>
+<tr><td>不改</td><td><code>scripts/onboard/*</code>、<code>scripts/land_rules_commit.py</code>、<code>scripts/rehearse_land.sh</code></td><td>本轮明确不改、保留</td><td>—</td><td>—</td><td>—</td><td>理由：不扩大范围；onboard 规格失效问题见盲区</td></tr>
 <tr><td>主会话</td><td>合并、<code>sync-targets.json</code>、全局 settings、各仓库迁移、SSH 公钥、AWS 消息、交接</td><td>上述以外的全部本计划文件</td><td>—</td><td>W1、W2 合并之后</td><td>各 <code>REPO_MIGRATE</code>、<code>HOOK_LIVE</code>、<code>GLOBAL_SYNC</code></td><td>理由：涉及用户配置和实时判停，不委派</td></tr>
 <tr><td>审查</td><td>合并前审查，每个分支一个审查者</td><td>只读</td><td>—</td><td>W1、W2 各一次</td><td><code>PRE_MERGE_REVIEW=PASS</code></td><td>sonnet</td></tr>
 </table>
@@ -273,20 +282,19 @@ uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply  --r
 <tr><td><code>PLAN_CONSISTENCY_REVIEW</code></td><td>S0</td><td>涉及失败处理、接口或范围的冲突交用户裁决</td></tr>
 <tr><td><code>PRE_MERGE_REVIEW</code> / <code>POST_MERGE_REVIEW</code></td><td>S3</td><td>交回原子代理续改，两轮仍不过交用户</td></tr>
 <tr><td><code>HOOK_LIVE</code></td><td>S4、S6</td><td>撤掉刚加的 hook 段，证据交用户</td></tr>
-<tr><td><code>GUARD_FIX=STOP</code></td><td>S5、S6 每个仓库</td><td>该仓库跳过，原文列进汇报，继续下一个仓库</td></tr>
+<tr><td><code>GUARD_FIX=STOP</code></td><td>S5、S6 每个仓库</td><td>跳过该仓库、继续迁移其他仓库，不等裁决；STOP 原文与 <code>git status -sb</code> 列进收尾汇报，由用户逐项裁决（K5 的「停下」在迁移批次里落实为「该仓库停下」）</td></tr>
 </table>
 
 <h2>五、runbook（单仓库迁移，主会话执行）</h2>
 <pre>cd &lt;检出&gt;
-uv run --no-project python /data/hongzefu/AgentMetaRules-hongzefu/scripts/repo_guard.py start
+uv run --no-project python &lt;本机正本 clone&gt;/scripts/repo_guard.py start
 # 看三行判定；DIVERGED / dirty 规则文件 → 停
 git rm -r --quiet docs/subagent-stats          # 存在时才做
-uv run --no-project python /data/hongzefu/AgentMetaRules-hongzefu/scripts/repo_guard.py fix --subject-prefix '&lt;本仓库体例&gt;'
+uv run --no-project python &lt;本机正本 clone&gt;/scripts/repo_guard.py fix --subject-prefix '&lt;本仓库体例&gt;' --include-staged-removal docs/subagent-stats
 uv run --no-project python .agentmetarules/scripts/sync_rules.py self-check --root .
-git submodule status .agentmetarules
-git ls-remote https://github.com/hongzefu/AgentMetaRules-hongzefu.git refs/heads/main
+git -C .agentmetarules merge-base --is-ancestor &lt;R&gt; HEAD &amp;&amp; echo contains_R=yes
 git status -sb | head -1                       # 不得有 ahead</pre>
-<p>首次迁移时，<code>fix</code> 还用正本 clone 里的脚本；接入后，仓库就用自己子模块里的脚本。<code>git rm</code> 和 <code>fix</code> 的提交合在同一个 commit 里：<code>fix</code> 提交前会把已暂存的 <code>docs/subagent-stats</code> 删除一起带上，这一项只在迁移时通过 <code>--include-staged-removal docs/subagent-stats</code> 显式开启。</p>
+<p>本机正本 clone：aspen、vail 都是 <code>/data/hongzefu/AgentMetaRules-hongzefu</code>；AWS 是 <code>/scratch/hongze/AgentMetaRules-hongzefu</code>（<code>sync-targets.json</code> 的 machines 段）。首次迁移时，<code>fix</code> 还用正本 clone 里的脚本；接入后，仓库就用自己子模块里的脚本。<code>git rm</code> 和 <code>fix</code> 的提交合在同一个 commit 里，靠的是上面命令里的 <code>--include-staged-removal docs/subagent-stats</code>（机制 B ⑥、1.2 节同名参数）；仓库里没有该目录时去掉这个参数。</p>
 
 <h2>六、风险登记</h2>
 <table>
@@ -305,6 +313,7 @@ git status -sb | head -1                       # 不得有 ahead</pre>
 <li>vail 上 4 份 <code>/data</code> 检出的工作区状态：S6 时才现场核实。</li>
 <li>vail 上 NFS 的 10 份 benchmark 检出是否是同一仓库的 worktree：未核实；本计划不主动迁移它们。</li>
 <li>Codex 没有 hook，「提交后检查」只能靠规则自觉执行。</li>
+<li><code>scripts/onboard/</code> 的三份接入规格按 <code>sync-targets.json</code> 的 target 名命名；仓库条目删掉后，这些规格不再被使用。本轮保留不改，另行清理。<code>land_rules_commit.py</code> 同样保留。</li>
 <li>本机 <code>jq</code> 未安装；第 26 条和 <code>CLAUDE.md</code> 里的 <code>jq</code> 检查命令在 aspen 上跑不了，改用 <code>uv run --no-project python -c</code>。本计划不改那条命令，只记录。</li>
 </ul>
 
