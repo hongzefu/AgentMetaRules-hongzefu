@@ -8,13 +8,14 @@
 2. **`common-agents` 标记块**——通用规则正本 `AGENTS.md` 通用块（「强制规则（最高优先级）」到「附录 A」表末）的**逐字副本**，由同步脚本填入，**不得手改**；BEGIN 行的 `src=` / `blob=` 记录副本来自正本哪个 commit、块内容的 blob id；
 3. **项目专属内容**——标记块之后的项目专属规则（P1…Pn）、对正本的覆盖项、占位符取值、项目 scope、规则来源与未采用清单，手写。
 
-**正本**：本机 `/data/hongzefu/AgentMetaRules-hongzefu`，GitHub [`hongzefu/AgentMetaRules-hongzefu`](https://github.com/hongzefu/AgentMetaRules-hongzefu)。平时只读本文件，不必去读正本；只在同步时（有正本检出的机器上）比对副本：
+**正本**：GitHub [`hongzefu/AgentMetaRules-hongzefu`](https://github.com/hongzefu/AgentMetaRules-hongzefu)，以子模块 `.agentmetarules/` 接入本仓库（`.gitmodules` 写 `branch = main`）。平时只读本文件，不必去读子模块。首次接入：
 
 ```bash
-uv run --no-project python /data/hongzefu/AgentMetaRules-hongzefu/scripts/sync_rules.py check --repo <name>
+git submodule add -b main https://github.com/hongzefu/AgentMetaRules-hongzefu.git .agentmetarules
+uv run --no-project python .agentmetarules/scripts/sync_rules.py self-apply --root .
 ```
 
-`<name>` 是本仓库在正本 `sync-targets.json` 里的登记名。末行 `SYNC_SUMMARY=PASS` 即副本与正本一致；`FAIL` 时由正本侧 `apply` 回流，不在本仓库手改标记块。需要偏离通用规则时，写进下方「对正本的覆盖项」。
+此后每次开工按标记块第 29 条运行 `uv run --no-project python .agentmetarules/scripts/repo_guard.py start` 与 `fix`：子模块更新到正本最新、`self-apply` 写回标记块，子模块指针与规则文件同一个 commit 提交并推送。只读核对用 `uv run --no-project python .agentmetarules/scripts/sync_rules.py self-check --root .`，末行 `SYNC_SUMMARY=PASS` 即副本与正本一致；不在本仓库手改标记块。需要偏离通用规则时，写进下方「对正本的覆盖项」。
 
 **优先级**：系统 / 开发者 / 用户当前指令 > 本文件标记块外明确写出的覆盖项与项目专属规则 > 标记块内的通用规则。覆盖项未涉及处以标记块为准；标记块未规定处以项目专属内容为准。项目目标、历史计划和示例命令不代表本轮实施授权。
 
@@ -49,7 +50,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 **冲突即停**：判定输出与上表任一行不符，或两套判据互相矛盾，一律停下来把原始输出交用户裁决，不得自行挑一套往下走，也不得按「多数判据像 A」推断；不属于任一列的第三套硬件同理。环境 B 的红线（如有）：一切持久化只落 `<SINGLE_NODE_ROOT>`；不连集群、不提交 Slurm；不访问不存在的共享存储（含 symlink 穿透与新建外链）。集群作业里把本表编码成逐行 `|| { echo …; exit 2; }` 的 fail-fast（骨架见正本 [`templates/run_in_hold.sh`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/templates/run_in_hold.sh)）。
 
 <!-- AGENTMETARULES:BEGIN common-agents src=<正本 sha> blob=<块 blob> -->
-（由 sync_rules.py apply 填入，勿手改）
+（由 sync_rules.py self-apply 填入，勿手改）
 <!-- AGENTMETARULES:END common-agents -->
 
 ## 项目专属规则（P1…Pn）
@@ -63,7 +64,6 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 - **覆盖第 4 条（改动后验证）**：核心短测命令：`<命令>`；条件测试：`<命令>`；最小 smoke 的维度组合：`<…>`。
 - **覆盖第 12 / 13 条（留档）**：`<DOC_ROOT>` 的具体子目录与章节体例（如与正本不同）。
 - **覆盖第 21 条（受保护目录）**：`<PROTECTED_DIRS>` = `<目录>`；默认冻结项：`<文件>`，验证命令 `git diff --quiet HEAD -- <文件>`。
-- **覆盖第 11 条（push）**：<若本仓库不继承自动推送授权，在此明确声明；否则删除本行>。
 - <其它覆盖项，每条注明正本条号与理由>
 
 ## 占位符取值
@@ -90,7 +90,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
 
 ## 规则来源与未采用清单
 
-通用规则副本来自正本哪个 commit、块内容的 blob id，见上方 BEGIN 标记行的 `src=` / `blob=`（由 `sync_rules.py apply` 写入，回流时自动更新），不在此另写 sha。**未采用的通用条目及原因**：
+通用规则副本来自正本哪个 commit、块内容的 blob id，见上方 BEGIN 标记行的 `src=` / `blob=`（由 `sync_rules.py self-apply` 写入，每次开工更新子模块时自动更新），不在此另写 sha。**未采用的通用条目及原因**：
 
 - 第 <N> 条：<原因，如「本仓库只做评测、没有训练链路」>。
 - …

@@ -1,11 +1,11 @@
 # CLAUDE.md
 
-本文件是 Claude Code 的入口：下一行 `@AGENTS.md` 导入本仓库通用规则与项目规则；标记块内是正本 `CLAUDE.md` 通用块（Claude Code 独有机制）的逐字副本，由 `sync_rules.py apply` 填入、不得手改；项目专属补充写在标记块之后。两份文件冲突时一律以 `AGENTS.md` 为准。
+本文件是 Claude Code 的入口：下一行 `@AGENTS.md` 导入本仓库通用规则与项目规则；标记块内是正本 `CLAUDE.md` 通用块（Claude Code 独有机制）的逐字副本，由子模块 `.agentmetarules/` 里的 `sync_rules.py self-apply` 填入（`AGENTS.md` 第 25、29 条）、不得手改；项目专属补充写在标记块之后。两份文件冲突时一律以 `AGENTS.md` 为准。
 
 @AGENTS.md
 
 <!-- AGENTMETARULES:BEGIN common-claude src=<正本 sha> blob=<块 blob> -->
-（由 sync_rules.py apply 填入，勿手改）
+（由 sync_rules.py self-apply 填入，勿手改）
 <!-- AGENTMETARULES:END common-claude -->
 
 ## 项目专属补充
