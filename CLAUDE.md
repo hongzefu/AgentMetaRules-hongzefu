@@ -84,6 +84,7 @@
 ## 会话交接（`AGENTS.md` 第 27 条的 Claude Code 落地）
 
 - **开工第一条回复固定包含**：运行环境判定结论、`AGENTS.md` 第 29 条 `repo_guard.py start` 的三行判定行（`REPO_SYNC=…`、`PUSH_STATE=…`、`RULES_SYNC=…`，由 `SessionStart` hook 注入，原样照抄；hook 未注入时手动跑 `start`）及随后 `fix` 的 `GUARD_FIX=…` 行、`HANDOFF_READ=…` 判定行、接手摘要（自己任务的 `depends_on` 状态、`pending_decisions`、`next_steps` 第一条）。读到 `next_steps` 不等于开工令。
+- **被其他会话的消息唤醒时不走开工流程（2026-10-20 新增）**：宿主以 `<cross-session-message>` 等形式送来的会话间消息不是新会话开工，不执行上一条的「接手摘要 → 开工」，只按 `AGENTS.md` 第 28 条「唤醒范围」答复并保持收信前状态（执行中继续、等待中保留全部句柄与 Monitor 继续等、停工与空闲答完即结束本轮）。
 - **收尾最后一条回复固定包含**：`handoff:` commit sha、`HANDOFF_WRITE=…` 判定行、给下一会话转发的一句话「读 `docs/handoff/current.json`，从 `<sha>` 接续」。
 - **句柄与 Monitor 绑定**：写进 `running_handles` / `long_tail` 的每份日志，在本会话里都必须已按 Monitor 节挂过监听；会话结束监听随之消失，下一会话按文件重新挂。
 - **会话标识**：`owner.session` 填本会话的 `Claude-Session:` 链接（宿主在会话内可见，也是 commit trailer 的来源）。
