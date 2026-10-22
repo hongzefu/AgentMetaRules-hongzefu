@@ -97,6 +97,24 @@ AWS `p4de.24xlarge`（us-west-2c）：8 × A100-SXM4-80GB 全互联 NVLink、96 
 - **不要创建 `~/.ssh/config`**：各项目第 0 条判据表把「`~/.ssh/config` 不存在」写成环境 B 的判据，创建后所有仓库的环境判定都会冲突。
 - 本机没有 `gh` CLI，PR 等操作需另行安装或在网页上做。
 
+## Codex：全部 Astra + ultra，禁止回退（2026-10-22）
+
+用户原话：「给出对codex 在aws上的修正 必须全部astra ultra 不得回退 写进agentmetarules」。这是 AWS Codex 的用户政策，完整规则见 [`AGENTS.md`](../AGENTS.md) 第 26 条：主代理、全部角色子代理与递归子代理，包括探索、规划、修改、运行、测试、审查及续接，一律使用 `gpt-6-astra` + `ultra`；不可用或无法确认实际组合时报告阻塞，禁止切换模型或降低强度。非 AWS 和 Claude Code 的模型规则不受此覆盖影响。
+
+本机 `~/.codex/config.toml` 的目标值：
+
+```toml
+model = "gpt-6-astra"
+model_reasoning_effort = "ultra"
+plan_mode_reasoning_effort = "ultra"
+```
+
+每次派发显式传入 `model="gpt-6-astra"`、`reasoning_effort="ultra"`；当前宿主的全历史 fork 不接受覆盖，故使用 `fork_turns="none"` 和自含任务说明。项目、profile、角色、审查配置及启动参数也必须满足该组合；启动与续接时核对实际值，不用省略参数继承旧默认。失败时只可在错误类型和预算允许下以同一组合重试，不添加虚构的 `fallback` 配置键。
+
+官方 [Codex 配置参考](https://learn.chatgpt.com/docs/config-file/config-reference) 说明推理档位取决于模型与客户端；本机 `models_cache.json` 的 `gpt-6-astra` 条目列出 `ultra`，本会话 `spawn_agent` 工具也提供该组合。这是配置与工具能力证据，不能代替每个实际会话的生效核验，更不代表其他客户端都支持。
+
+本次本机配置修正已读回：`model` 原为 `gpt-6-astra`，`model_reasoning_effort` 和 `plan_mode_reasoning_effort` 从 `high` 改为 `ultra`；其他配置保持原样，子代理并发仍为 32。配置文件校验通过仅证明默认值已落地；未批量切换或验证既有会话，不能声称所有历史任务已经生效。
+
 ## 复测命令
 
 ```bash

@@ -20,6 +20,7 @@
 
 ### 子代理派发政策（强制；`AGENTS.md` 第 26 条与 `CLAUDE.md` Agent 节摘录）
 
+- **AWS Codex 专属覆盖（2026-10-22）**：AWS 上的 Codex 主代理、全部角色子代理及递归子代理，普通模式、计划模式与续接一律只用 `gpt-6-astra` + `ultra`。每次派发显式设置 `model="gpt-6-astra"`、`reasoning_effort="ultra"`；全历史 fork 无法覆盖时用 `fork_turns="none"` 和自含说明。AWS 默认配置的 `model` 为 `gpt-6-astra`，`model_reasoning_effort` 与 `plan_mode_reasoning_effort` 均为 `ultra`，其他配置层及实际会话同样核对。不可用、调用失败、被替换或无法确认实际组合时停止受影响工作并报告；禁止回退其他模型或任何低于 `ultra` 的强度，仅可在错误类型与预算允许时以原组合重试。本项覆盖通用禁 Astra、Luna／Sol 职责映射、最低 high／主代理豁免及旧模型档位上限，不将配置写入等同于旧会话已切换。此覆盖不适用于 Claude Code 与非 AWS Codex；以下 Claude 角色表保持原样。
 - **默认多代理，本节即委派许可**：凡任务能拆出独立的探索、规划、修改、运行、验证或审查子任务，尽量并发派子代理完成；主代理定总计划，自己只做下一步立即依赖其结果的阻塞步骤，依赖步骤顺序执行。不为凑并发制造重复任务，不扩大用户本轮授权。
 - **模型按职责显式选择，每次派发都写 `model`，不继承主代理**（这是用户制定的角色政策，不是官方分工）：
 
@@ -31,9 +32,9 @@
   | 审查、对抗验证、文档与代码评审 | `sonnet` | 只读；钉死 BASE／TIP sha；同一 finding 只派一个审查者，不并行复制、不靠多数票 |
   | 画图（内联 SVG、SVG／PNG） | `fable` | 第 2 条 2026-10-12 用户指定的唯一 Fable 例外；交付前主会话必须渲染成位图目视复查重叠／对齐／溢出／图例 |
 
-  - 除画图外**不派 `fable`／Astra 或白名单外模型**；子代理及递归子代理档位不得高于本次用户主请求。大角色不降档给 Haiku，探索不升档。
+  - Claude Code 除画图外**不派 `fable`／Astra 或白名单外模型**；子代理及递归子代理档位不得高于本次用户主请求。大角色不降档给 Haiku，探索不升档。
   - 职责档位与可用模型、宿主限制冲突，或模型不可用时，**停止该项派发并报告原始原因**，不静默换档，不以继承模型绕过显式选择。`fork` 类型永远跟父模型，不能用来规避本表。
-  - Claude 子代理不规定推理强度（Codex 子代理最低 `high` 的要求不适用于 Claude）。
+  - Claude 子代理不规定推理强度（非 AWS Codex 子代理最低 `high`、AWS Codex 全部 `ultra` 的要求均不适用于 Claude）。
 - **生命周期：同一决策点按批并发派出、一次性交回**：独立任务在同一条消息里发出全部 Agent 调用；一份结果交回即结束，下一决策点按需新派一批，不搭长期代理网络。`SendMessage` 只用于续接被中断、只差一步或审查失败需续改的同一代理。串行依赖不并行。数量按宿主容量（`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` 与 `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS` 均设 64），满额报 `Concurrent subagent limit reached` 时等已派批次返回，不忙重试；多开只缩短等待，用量仍计入主会话额度。
 - **委派说明必须写清**：目标、上下文、工作树绝对路径与基线 sha、可读／可写文件、禁触路径、依赖、交付格式、验收命令与判定行。只读代理写明「只读，不改文件、不跑有副作用的命令」（只读提示不是权限沙箱）。同一文件单一 owner，告知「代码库里不只你一个在改：不碰集合外文件、不回滚他人改动」。有计划的任务按计划里的「子代理分配表」派，已授权范围内可调整职责、数量、依赖与整合顺序并说明原因；无分工时先形成明确委派再派，不把「可以自行拆分」当成可以扩权。
 - **写入型子代理统一独立 worktree**：不得以写集不相交为由共用主检出写代码；派发前核对全局 `settings.json` 的 `worktree.baseRef` 为 `"head"`。子代理只在自己的 worktree 工作，commit subject 固定前缀 `sub/<子任务编号>: ` + 中文描述，全部原样保留；**子代理不 push、不合主分支、不 `--amend`／`reset --hard`**。主会话合并前审查（`sonnet`，钉死 `REVIEW_BASE`／`REVIEW_TIP`，输出 `PRE_MERGE_REVIEW=PASS|FAIL …`）→ `git merge --no-ff <TIP sha>` → 合并后审查（`POST_MERGE_REVIEW=PASS|FAIL …`）→ push → 清理 worktree。写入方与审查方不得是同一代理。
