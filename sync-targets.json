@@ -79,6 +79,13 @@
     "sled-aspen": {
       "_comment": "sled-aspen.eecs.umich.edu（各项目的环境 A）；~/.claude 默认 CLAUDE_CONFIG_DIR；2026-10-19 本机仓库全部迁移到子模块 .agentmetarules 自同步，仓库条目已删除，只剩默认 global-claude",
       "targets": []
+    },
+    "Hongzes-MacBook-Pro": {
+      "_comment": "hongzefu 的 MacBook Pro（macOS / zsh，Apple Silicon）；~/.claude 默认 CLAUDE_CONFIG_DIR；经 ~/.ssh/config 别名 aspen / vail / whistler 连 SLED 服务器；2026-10-28 登记",
+      "canon": {
+        "path": "/Users/hongzefu/code/AgentMetaRules-hongzefu"
+      },
+      "targets": []
     }
   },
   "_comment": "2026-10-19 起项目仓库改用子模块 .agentmetarules 自同步（AGENTS.md 第 25、29 条），本文件默认只登记 global-claude；machines 段只为未迁移机器过渡保留仓库条目"
