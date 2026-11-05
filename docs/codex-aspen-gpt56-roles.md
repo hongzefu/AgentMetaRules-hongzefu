@@ -14,11 +14,12 @@ Codex 主代理、所有子代理及递归子代理仅允许使用 GPT-6 与 GPT
 
 | 角色 | 模型 | 推理强度 | 写入边界 | 用途 |
 |---|---|---|---|---|
-| 主代理 / `default` | `gpt-6.1-sol` | `high` | 继承当前会话 | 总体决策、整合、兜底 |
-| `planner` | `gpt-6.1-sol` | `xhigh` | `read-only` | 高歧义、多阶段计划与风险分析 |
-| `reviewer` | `gpt-6.1-sol` | `high` | `read-only` | 正确性、安全性、回归与测试缺口审查 |
-| `worker` | `gpt-6-sol` | `high` | 继承当前会话 | 边界清晰的代码或配置实现 |
-| `tester` | `gpt-6-sol` | `high` | 继承当前会话 | 测试、复现、日志与失败归因，不修改源码 |
+| 主代理 | `gpt-6.1-sol` | 沿用主会话配置，本次不修改 | 继承当前会话 | 总体决策、整合、兜底 |
+| `default` 子代理 | `gpt-6.1-sol` | 默认 `medium`，允许更高 | 继承当前会话 | 通用子任务与整合 |
+| `planner` | `gpt-6.1-sol` | 默认 `medium`，允许更高 | `read-only` | 高歧义、多阶段计划与风险分析 |
+| `reviewer` | `gpt-6.1-sol` | 默认 `medium`，允许更高 | `read-only` | 正确性、安全性、回归与测试缺口审查 |
+| `worker` | `gpt-6-sol` | 默认 `medium`，允许更高 | 继承当前会话 | 边界清晰的代码或配置实现 |
+| `tester` | `gpt-6-sol` | 默认 `medium`，允许更高 | 继承当前会话 | 测试、复现、日志与失败归因，不修改源码 |
 | `explorer` | `gpt-6-luna` | `high` | `read-only` | 快速代码路径、文件、依赖与事实检索 |
 
 上表示例型号须以宿主实际可用列表核对，并遵守第 26 条的职责映射、显式选择和子代理不高于主请求模型档位的约束；无法比较档位时停止受影响派发并报告，不以继承模型绕过显式选择。指定型号不可用时报告，不得回退到 GPT-5.6。
@@ -38,7 +39,7 @@ project_doc_max_bytes = 131072
 enabled = true
 max_concurrent_threads_per_session = 32
 default_subagent_model = "gpt-6-sol"
-default_subagent_reasoning_effort = "high"
+default_subagent_reasoning_effort = "medium"
 ```
 
 全局 `AGENTS.md` 通过符号链接指向正本；六个角色必须复制成 `~/.codex/agents/` 下的普通文件。2026-10-06 实测角色使用指向仓库外的符号链接时，运行时返回 `agent type is currently not available`，改为字节相同的普通文件后才成功注册：
@@ -73,7 +74,7 @@ assert config['model_reasoning_effort'] == 'high'
 assert config['project_doc_max_bytes'] == 131072
 assert config['agents']['max_concurrent_threads_per_session'] == 32
 assert config['agents']['default_subagent_model'] == 'gpt-6-sol'
-assert config['agents']['default_subagent_reasoning_effort'] == 'high'
+assert config['agents']['default_subagent_reasoning_effort'] == 'medium'
 
 expected = {'default', 'planner', 'explorer', 'worker', 'reviewer', 'tester'}
 seen = set()
@@ -83,6 +84,7 @@ for path in sorted((root / 'agents').glob('*.toml')):
     role = tomllib.loads(path.read_text())
     assert role['model'].startswith(('gpt-6-', 'gpt-6.1-')), (path, role['model'])
     assert role['name'] == path.stem, (path, role['name'])
+    assert role['model_reasoning_effort'] == ('high' if 'luna' in role['model'] else 'medium'), path
     seen.add(role['name'])
 assert seen == expected, (seen, expected)
 print('ASPEN_GPT6_SERIES_ROLES=PASS')
