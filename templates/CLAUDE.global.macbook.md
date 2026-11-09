@@ -4,7 +4,8 @@
 
 ## 运行环境（本机专属）
 
-- 本机为 MacBook（macOS / zsh），单机环境，无集群、无 GPU 服务器访问；不要 ssh 试探集群、不调用集群相关 skill（`greatlakes-usage`）。
+- 本机为 MacBook（macOS / zsh），本机无 GPU、无 Slurm；不要 ssh 试探集群（greatlakes）、不调用集群相关 skill（`greatlakes-usage`）。
+- SLED 实验室服务器（`aspen`、`vail`、`whistler` 等，按本机 `~/.ssh/config` 别名填写）可以直接 `ssh`，不必等用户逐次提出或批准（`AGENTS.md` 第 28 条 2026-11-09 子项）；AWS 不支持 SSH、不在校园网内，不尝试连接。
 - `tmux` 需 `brew install tmux`；未安装时先提示用户安装，不擅自改用 nohup。
 - 持久化文件落点、缓存目录与 GitHub 凭据按本机实际填写。
 - 全局 `~/.claude/settings.json` 挂 `SessionStart`／`PostToolUse` 两个 hook（正本 `CLAUDE.md`「hook 配置」），兜底脚本路径填本机正本 clone 的 `scripts/repo_guard.py`。
