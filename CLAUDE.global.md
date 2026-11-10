@@ -1,15 +1,15 @@
 # CLAUDE.global.md — 每台机器全局 `CLAUDE.md` 的通用块（正本 4）
 
-本文件是各机器全局 `CLAUDE.md`（`$CLAUDE_CONFIG_DIR/CLAUDE.md`，默认 `~/.claude/CLAUDE.md`）里 `common-global` 标记块的正本。全局文件对本机**所有目录、所有会话**生效，包括没有接入正本的目录（例如直接在工作盘根目录开的会话），所以这里只放一份**自包含的摘录**：语言（第 1 条）、子代理派发政策（`AGENTS.md` 第 26 条与 `CLAUDE.md`「Workflow 与 Agent 模型」）、跨会话沟通（第 28 条）、uv（第 3 条）、detached tmux（第 7 条）、Monitor（`CLAUDE.md`「Monitor 工具」）、git 提交纪律（第 11 条）、开工与提交后的同步检查（第 29 条与 `CLAUDE.md`「hook 配置」）。不 `@` 导入正本——双份注入每会话多占约 30k token（见 README「维护规则」）。
+本文件是各机器全局 `CLAUDE.md`（`$CLAUDE_CONFIG_DIR/CLAUDE.md`，默认 `~/.claude/CLAUDE.md`）里 `common-global` 标记块的正本。全局文件对本机**所有目录、所有会话**生效，包括没有接入正本的目录（例如直接在工作盘根目录开的会话），所以这里只放一份**自包含的摘录**：语言（第 1 条）、子代理派发政策（`AGENTS.md` 第 26 条与 `CLAUDE.md`「Workflow 与 Agent 模型」）、跨会话沟通（第 28 条）、uv（第 3 条）、detached tmux（第 7 条）、Monitor（`CLAUDE.md`「Monitor 工具」）、git 提交纪律（第 11 条）、开工与提交后的同步检查（第 29 条与 `CLAUDE.md`「hook 配置」）、对外发送确认（第 30 条）。不 `@` 导入正本——双份注入每会话多占约 30k token（见 README「维护规则」）。
 
 - **优先级**：接入正本的仓库里以仓库内 `AGENTS.md` / `CLAUDE.md` 标记块为准（更完整），本块只是兜底，两者冲突按仓库内规则执行。
-- **维护**：改第 1、3、7、11、26、28、29 条或 `CLAUDE.md` Agent／Monitor／hook 节时，**同一正本 commit 里同步改本文件**，不得只改一处；回流机制见 `AGENTS.md` 第 25 条「全局配置也是回流目标」（目标名 `global-claude`；全局文件不能用子模块，每次开工在本机正本 clone 里 fetch 快进后 `check`／`apply --repo global-claude`）。
+- **维护**：改第 1、3、7、11、26、28、29、30 条或 `CLAUDE.md` Agent／Monitor／hook 节时，**同一正本 commit 里同步改本文件**，不得只改一处；回流机制见 `AGENTS.md` 第 25 条「全局配置也是回流目标」（目标名 `global-claude`；全局文件不能用子模块，每次开工在本机正本 clone 里 fetch 快进后 `check`／`apply --repo global-claude`）。
 - **机器专属**内容（路径、集群有无、凭据、配置目录、正本 clone 位置）写在全局文件的标记外，骨架见 [`templates/CLAUDE.global.md`](templates/CLAUDE.global.md)，MacBook 用 [`templates/CLAUDE.global.macbook.md`](templates/CLAUDE.global.macbook.md)。
 
 <!-- AGENTMETARULES:BEGIN common-global -->
 ## 通用规则（AgentMetaRules 正本摘录，勿手改）
 
-本节由 [AgentMetaRules-hongzefu](https://github.com/hongzefu/AgentMetaRules-hongzefu) 的 `CLAUDE.global.md` 经 `scripts/sync_rules.py` 回流，是 `AGENTS.md` 第 1、3、7、11、26、28、29 条与 `CLAUDE.md`「Workflow 与 Agent 模型」「Monitor 工具」「hook 配置」的自包含摘录。**当前目录或其上级已有带 `AGENTMETARULES` 标记块的 `CLAUDE.md` / `AGENTS.md` 时，以仓库内规则为准**（更完整，含第 0 条环境判定、第 2 条计划与开工令、第 27 条交接等），本节只约束未接入正本的目录，并在两者一致处重申。
+本节由 [AgentMetaRules-hongzefu](https://github.com/hongzefu/AgentMetaRules-hongzefu) 的 `CLAUDE.global.md` 经 `scripts/sync_rules.py` 回流，是 `AGENTS.md` 第 1、3、7、11、26、28、29、30 条与 `CLAUDE.md`「Workflow 与 Agent 模型」「Monitor 工具」「hook 配置」的自包含摘录。**当前目录或其上级已有带 `AGENTMETARULES` 标记块的 `CLAUDE.md` / `AGENTS.md` 时，以仓库内规则为准**（更完整，含第 0 条环境判定、第 2 条计划与开工令、第 27 条交接等），本节只约束未接入正本的目录，并在两者一致处重申。
 
 ### 语言：始终使用简体中文
 
@@ -111,4 +111,11 @@
 - **提交后检查**：每次 `git commit` 后确认没有 `ahead`；`PostToolUse` hook（匹配 Bash 里的 `git … commit`）在有未推送 commit 时注入 `PUSH_STATE=AHEAD` 提醒，见到即裸 `git push`。
 - **hook 不写仓库**、任何异常只输出 `GUARD_ERROR=` 且退出码为 0；写入都在 agent 可见的 `fix` 步骤里。Codex 无 hook，开工手动跑 `start`／`fix`，提交后手动 `git status -sb`。worktree 里的子代理不跑检查、不改规则文件。新 clone、第二份检出开工时由 `fix` 自动接入子模块，不按路径登记。
 - **Codex 百万上下文启动核验（仅 Codex，2026-11-02）**：每次主会话开工，人工核对实际 `CODEX_HOME/config.toml`（默认 `~/.codex`，远程服务可能另用 `remote-control-host`），顶层设置 `model_context_window = 1000000`、`model_auto_compact_token_limit = 900000`，核查活动 profile 与启动参数覆盖；缺失或不符时保留其他配置对齐，权限受限按宿主流程处理。读回解析后报告 `CODEX_CONTEXT_CONFIG=PASS|FAIL home=<实际目录> window=<读回值> compact=<读回值>`，启动覆盖未核实不能报 PASS。另从本会话 `token_count` 的 `info.model_context_window` 读取实际窗口，报告 `CODEX_CONTEXT_RUNTIME=OBSERVED|UNVERIFIED model=<模型> effective=<实测值或unknown> evidence=<日志路径或none>`；OBSERVED 只表示观测到运行值，不表示达到配置值。有效容量受模型与宿主限制，900000 也只是配置阈值，不是已测压缩时点。旧会话不保证热更新，无新证据就写未验证，仍是旧值就照实报告；不改模型缓存、不擅自重启或停止会话与服务。这是 agent 手动检查，不能用 `repo_guard.py` 三行同步判定冒充上下文已核验；不改变 Claude Code 的上下文设置。
+### 对外发送必须逐次确认（`AGENTS.md` 第 30 条摘录，2026-11-09）
+
+- **适用**：一切会触达用户本人以外的人或账号的操作——发邮件、回复邮件、Slack／聊天消息、日历邀请与更新／取消通知、会议邀请、评论、PR／issue 评论、表单提交、分享文件等。只在用户自己账号内生成、不通知任何人的操作（不带受邀人的 Zoom 会议、只有自己的日程、草稿）不在此列，但方案仍须经用户同意。
+- **逐次确认终稿**：发送前把终稿原样给用户看——收件人、时间、标题、正文、链接、附件——等用户明确说「发」才发。「帮我 finalize」「你来预约」「同意这个方案」只同意方案，**不等于同意发送**；终稿因情况变化改了措辞（哪怕一句）就重新确认；一次同意只覆盖看过的那一条。
+- **先草稿、后发送**：能分两步的工具（Gmail 草稿、Slack `send_message_draft`、日历先建事件不加受邀人）优先走草稿；一建就发的（带受邀人的日历事件）在调用前把参数当终稿给用户看。取消事件、撤回消息会通知对方，同样先确认，能选「不发通知」时说明后果让用户选。
+- **不用电脑控制发送**：对外发送不经用户明确授权不用 computer-use／浏览器点按直接点「发送」；用连接器／API（Gmail、Slack、Google Calendar、Zoom 等 MCP 连接器）起草→确认→调用。没有连接器先搜 MCP 注册表请用户接入，接不上就把终稿交给用户自己发；用户明确说「用浏览器／电脑控制发」才用。
+- **误发**：立刻如实告诉用户发了什么、给谁、何时（美东）；撤回、删除、再发更正都是新的对外动作，同样先确认。
 <!-- AGENTMETARULES:END common-global -->
