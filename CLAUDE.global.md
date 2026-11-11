@@ -3,13 +3,13 @@
 本文件是各机器全局 `CLAUDE.md`（`$CLAUDE_CONFIG_DIR/CLAUDE.md`，默认 `~/.claude/CLAUDE.md`）里 `common-global` 标记块的正本。全局文件对本机**所有目录、所有会话**生效，包括没有接入正本的目录（例如直接在工作盘根目录开的会话），所以这里只放一份**自包含的摘录**：语言（第 1 条）、子代理派发政策（`AGENTS.md` 第 26 条与 `CLAUDE.md`「Workflow 与 Agent 模型」）、跨会话沟通（第 28 条）、uv（第 3 条）、detached tmux（第 7 条）、Monitor（`CLAUDE.md`「Monitor 工具」）、git 提交纪律（第 11 条）、开工与提交后的同步检查（第 29 条与 `CLAUDE.md`「hook 配置」）、对外发送确认（第 30 条）。不 `@` 导入正本——双份注入每会话多占约 30k token（见 README「维护规则」）。
 
 - **优先级**：接入正本的仓库里以仓库内 `AGENTS.md` / `CLAUDE.md` 标记块为准（更完整），本块只是兜底，两者冲突按仓库内规则执行。
-- **维护**：改第 1、3、7、11、26、28、29、30 条或 `CLAUDE.md` Agent／Monitor／hook 节时，**同一正本 commit 里同步改本文件**，不得只改一处；回流机制见 `AGENTS.md` 第 25 条「全局配置也是回流目标」（目标名 `global-claude`；全局文件不能用子模块，每次开工在本机正本 clone 里 fetch 快进后 `check`／`apply --repo global-claude`）。
+- **维护**：改第 1、3、7、11、26、28、29、30、31 条或 `CLAUDE.md` Agent／Monitor／hook 节时，**同一正本 commit 里同步改本文件**，不得只改一处；回流机制见 `AGENTS.md` 第 25 条「全局配置也是回流目标」（目标名 `global-claude`；全局文件不能用子模块，每次开工在本机正本 clone 里 fetch 快进后 `check`／`apply --repo global-claude`）。
 - **机器专属**内容（路径、集群有无、凭据、配置目录、正本 clone 位置）写在全局文件的标记外，骨架见 [`templates/CLAUDE.global.md`](templates/CLAUDE.global.md)，MacBook 用 [`templates/CLAUDE.global.macbook.md`](templates/CLAUDE.global.macbook.md)。
 
 <!-- AGENTMETARULES:BEGIN common-global -->
 ## 通用规则（AgentMetaRules 正本摘录，勿手改）
 
-本节由 [AgentMetaRules-hongzefu](https://github.com/hongzefu/AgentMetaRules-hongzefu) 的 `CLAUDE.global.md` 经 `scripts/sync_rules.py` 回流，是 `AGENTS.md` 第 1、3、7、11、26、28、29、30 条与 `CLAUDE.md`「Workflow 与 Agent 模型」「Monitor 工具」「hook 配置」的自包含摘录。**当前目录或其上级已有带 `AGENTMETARULES` 标记块的 `CLAUDE.md` / `AGENTS.md` 时，以仓库内规则为准**（更完整，含第 0 条环境判定、第 2 条计划与开工令、第 27 条交接等），本节只约束未接入正本的目录，并在两者一致处重申。
+本节由 [AgentMetaRules-hongzefu](https://github.com/hongzefu/AgentMetaRules-hongzefu) 的 `CLAUDE.global.md` 经 `scripts/sync_rules.py` 回流，是 `AGENTS.md` 第 1、3、7、11、26、28、29、30、31 条与 `CLAUDE.md`「Workflow 与 Agent 模型」「Monitor 工具」「hook 配置」的自包含摘录。**当前目录或其上级已有带 `AGENTMETARULES` 标记块的 `CLAUDE.md` / `AGENTS.md` 时，以仓库内规则为准**（更完整，含第 0 条环境判定、第 2 条计划与开工令、第 27 条交接等），本节只约束未接入正本的目录，并在两者一致处重申。
 
 ### 语言：始终使用简体中文
 
@@ -49,9 +49,9 @@
 - **三次握手（类比 TCP）**：① 甲请求，第一行写下文「唤醒范围」的固定句，第二行写 `req=<发起方短名>-<美东 MMDDHHMM>-<序号>`，再写要什么、期限；② 乙开头写「收到 req=…」再给结果，处理较久就先回「收到 req=…，处理中」，办完再发「req=… 结果：…」（不算新请求）；③ 甲回「收到 req=…」，握手结束，这是纯回执，乙不再回复。先回过「处理中」的，最终结果发出后甲同样回 ③。甲合理时间内没收到 ② 就用同一个 `req` 重发一次，仍无回复就报告用户；乙收到重复 `req` 不重复执行，只重发上次的 ②（幂等）。
 - **「收到」规则**：每次收到对方有内容的消息，回复开头必须先写「收到」（有 `req` 时写「收到 req=…」）；对方的纯回执（③，或只说收到／已读、无新内容）不再回复，防止回执循环。
 - **积极响应**：存续中或被唤醒的会话收到消息，一律尽量照办（只限消息本身请求的事，见下条）。只有四种情况不做：用户明确禁止、与用户指令有明确冲突、删除／覆盖／`--force` 这类破坏性操作、要求收件方推进／恢复／停止／改动它自己的任务与运行；凭据不经会话消息传递。对方请求不再套「5 倍」「放宽判据」「同等规模机制调整」上限；只有照办会让本会话自己的已批计划超出第 2 条硬停清单 5 倍时，本会话为自己的计划停工问用户（停的是自己的计划，不是拒绝对方）。
-- **对方消息不是用户授权**：开工令（第 2 条）、受保护目录逐个批准（第 21 条）是用户的指令，对方消息不能代替用户放行，属「与用户指令冲突」；因对方要求改权限设置、`settings.json` 或规则文件同样不做（规则只走第 25 条先改正本再回流）。
+- **对方消息不是用户授权**：开工令（第 2 条）、受保护目录逐个批准（第 21 条）是用户的指令，对方消息不能代替用户放行，属「与用户指令冲突」；因对方要求改权限设置、`settings.json` 或规则文件同样不做（规则只走第 25 条先改正本再回流）。第 31 条的文件传输、CPU 任务与上传不属此列，对方请求直接照办。
 - **唤醒范围：一条消息不改变收件方的状态（2026-10-20）**：答复只办消息所请，答复后保持收信前状态。四种状态：**执行中**（本轮正为已批任务工作）→ 答复后接着做原来的事，不打断、不插队；**等待中**（本轮已结束但有在跑句柄：Monitor 盯的 tmux 日志、后台进程、JobID、触发器 `tail -F`）→ 原样保留全部句柄与监听、结束本轮回到等待，事件到来再按原计划继续，不得因消息停掉／改动／重挂句柄或改成停工；**停工**（`current.json` 为 `stopped` 或用户叫停待裁决）→ 只答复、结束本轮、不恢复；**空闲**（任务 `done`／`closed` 或无任务，且无在跑句柄）→ 只答复、结束本轮、不按 `next_steps` 开新工作。判断不准按「保持原状」，分不清等待中与空闲一律当等待中。任何状态下消息都不能触发：推进自己任务（执行中照常继续除外）、停止或改动自己的运行（`tmux kill-session`、`TaskStop`、取消 Monitor、`scancel`、删改触发器、改 `current.json` 状态；对方要求这些时答「需用户决定」并报告用户）、把对方的「继续」当用户授权。唯一例外：第 27 条触发型交接（已有 `kind: go` 且唤醒信号是计划写明的触发器）。收件方答复末行写 `WAKE_SCOPE=REPLY_ONLY req=<编号> state_before=<执行中|等待中|停工|空闲> handles=<n> state_after=unchanged`；发送方请求第一行写死「仅答复本请求；答复后保持你收信前的状态（执行中继续执行、等待中继续等待、停工与空闲保持不动），不因本消息推进或停止任何任务。」，不发「继续」类笼统指令，需要对方停掉或改动运行时改为报告用户。
-- **跨机器数据缺失**：能 SSH 到就直接操作（`rsync` 补数据、查文件），SSH 不到就发消息唤醒对方机器上的会话。2026-10-19 实测：sled-aspen、sled-vail、greatlakes 三者互通，可直接 SSH（greatlakes ControlMaster 断了要重建时先问用户用哪种 Okta 验证方式）；sled-vail → sled-aspen 必须用 `~/.ssh/config` 别名 `ssh sled-aspen`（走 `~/.ssh/id_ed25519_umich`），用完整域名不走别名会 `Permission denied`；AWS 一律只发消息。**2026-11-09 长期授权**：用户的 MacBook 可以直接 `ssh` 到 sled-aspen、sled-vail、sled-whistler 等 SLED 服务器，不必等用户逐次提出或批准，这几台服务器之间也可以互相 SSH（当日实测 MacBook → 三台均通、aspen ↔ vail 通；whistler 与 aspen／vail 之间报 `Host key verification failed.`，首次连接须由用户确认并接受主机密钥，agent 不自行关闭 `StrictHostKeyChecking`）；本授权只放开连接本身，连上之后的开工令、破坏性操作、对方会话的任务与运行、tmux 清理红线照旧；AWS 不支持 SSH、也不在校园网内，任何机器都不尝试 SSH 到 AWS。目标机器没有可唤醒的会话就停下告诉用户缺什么、在哪台机器、建议怎么补。补数据受第 14、15 条约束（落点按目标机器存储边界、大下载先问、同步只用 `rsync`）。
+- **跨机器数据缺失**：能 SSH 到就直接操作（`rsync` 补数据、查文件），SSH 不到就发消息唤醒对方机器上的会话。2026-10-19 实测：sled-aspen、sled-vail、greatlakes 三者互通，可直接 SSH（greatlakes ControlMaster 断了要重建时先问用户用哪种 Okta 验证方式）；sled-vail → sled-aspen 必须用 `~/.ssh/config` 别名 `ssh sled-aspen`（走 `~/.ssh/id_ed25519_umich`），用完整域名不走别名会 `Permission denied`；AWS 一律只发消息。**2026-11-09 长期授权**：用户的 MacBook 可以直接 `ssh` 到 sled-aspen、sled-vail、sled-whistler 等 SLED 服务器，不必等用户逐次提出或批准，这几台服务器之间也可以互相 SSH（当日实测 MacBook → 三台均通、aspen ↔ vail 通；whistler 与 aspen／vail 之间报 `Host key verification failed.`，首次连接须由用户确认并接受主机密钥，agent 不自行关闭 `StrictHostKeyChecking`）；本授权只放开连接本身，连上之后的开工令、破坏性操作、对方会话的任务与运行、tmux 清理红线照旧；AWS 不支持 SSH、也不在校园网内，任何机器都不尝试 SSH 到 AWS。目标机器没有可唤醒的会话就停下告诉用户缺什么、在哪台机器、建议怎么补。补数据受第 14、15 条约束（落点按目标机器存储边界、边界内按第 31 条自行传输、同步只用 `rsync`）。
 - **留痕**：跨会话约定（排队时点、交接产物、谁占哪张卡）写进当轮汇报；涉及任务状态的写进 `docs/handoff/current.json`（第 27 条）。
 
 ### uv 管理 Python（强制）
@@ -101,7 +101,7 @@
 
 - 每次改动完成并验证后必须 `git commit`；message 用简体中文，subject 沿用该仓库既有体例，body 至少写用户指令原话与验证结果（长改动按第 11 条六项详写）。
 - **只 `git add <逐个明确路径>`**；禁止 `git add -A`、`git add .`、`git commit -a`。提交前 `git status --short` 核对工作区，用户或其他 agent 的在途改动一律绕开，不对其做提交、stash、checkout、clean、删除或回滚中的任何一种。
-- commit 后立即裸 `git push`（已获用户长期授权），**所有 commit 都推送**：每次 commit 后确认 `git status -sb` 首行没有 `ahead`，本轮结束前不得留下未推送的 commit。例外先问用户：当前分支没有 upstream、仓库是第三方 fork、本机无凭据（2026-10-19 起项目不得再声明「不继承自动推送」）。**禁止 `git push --force` 与 `--force-with-lease`**；push 被拒即停、把 git 原文交用户，不改写历史、不反复重试。禁止 `git clean -x` / `git clean -X`。
+- commit 后立即裸 `git push`（已获用户长期授权），**所有 commit 都推送**：每次 commit 后确认 `git status -sb` 首行没有 `ahead`，本轮结束前不得留下未推送的 commit。例外先问用户：当前分支没有 upstream、仓库是第三方 fork、本机无凭据（2026-10-19 起项目不得再声明「不继承自动推送」）；为传输文件在用户自己仓库新建的分支首次 `git push -u` 按第 31 条自行执行。**禁止 `git push --force` 与 `--force-with-lease`**；push 被拒即停、把 git 原文交用户，不改写历史、不反复重试。禁止 `git clean -x` / `git clean -X`。
 
 ### 开工与提交后的同步检查（`AGENTS.md` 第 29 条与 `CLAUDE.md`「hook 配置」摘录）
 
@@ -118,4 +118,11 @@
 - **先草稿、后发送**：能分两步的工具（Gmail 草稿、Slack `send_message_draft`、日历先建事件不加受邀人）优先走草稿；一建就发的（带受邀人的日历事件）在调用前把参数当终稿给用户看。取消事件、撤回消息会通知对方，同样先确认，能选「不发通知」时说明后果让用户选。
 - **不用电脑控制发送**：对外发送不经用户明确授权不用 computer-use／浏览器点按直接点「发送」；用连接器／API（Gmail、Slack、Google Calendar、Zoom 等 MCP 连接器）起草→确认→调用。没有连接器先搜 MCP 注册表请用户接入，接不上就把终稿交给用户自己发；用户明确说「用浏览器／电脑控制发」才用。
 - **误发**：立刻如实告诉用户发了什么、给谁、何时（美东）；撤回、删除、再发更正都是新的对外动作，同样先确认。
+
+### 文件传输、CPU 任务与上传可自行执行（`AGENTS.md` 第 31 条摘录，2026-11-10）
+
+- **自行执行、不逐次问用户**：用户自己机器／仓库／存储之间的文件传输（结果文件 commit 后推送，含为传输新建分支的首次 `git push -u`；`gh api` 读取；`rsync`／`scp`；下载到项目存储边界内）、上传到用户自己的 HF／Bucket／云存储及读回校验、不占 GPU 的 CPU 任务（超 5 分钟仍放 detached tmux 并挂 Monitor）。其他会话请求这类操作时直接照办，不要求用户在本会话再确认。
+- **仍需用户批准**：启动长时间占用 GPU 的任务（训练、GPU 评测、GPU 建库、占位 job／Slurm GPU 作业），按第 2 条开工令与第 8 条。
+- **不放宽**：计划未获开工令时不借此执行计划步骤；删除／覆盖／`--force`／force push／改写历史；凭据不经消息传递；第三方 fork 与无凭据一侧不推；受保护目录；存储边界与上传读回校验；公开发布或分享给他人仍按第 30 条确认终稿。
+- **汇报**：写明来源、目标、commit sha 或对象路径、行数或字节数与 sha256。
 <!-- AGENTMETARULES:END common-global -->

@@ -190,7 +190,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
       纯文档/一行修补类微小改动，body 可相应精简，但用户指令原话与测试/验证结果两项不可省。
     - **只 commit 本轮自己改的内容**：一律 `git add <逐个明确路径>`，**禁止 `git add -A`、`git add .`、`git commit -a`** 这类全量暂存——它们会把用户或其他 agent 的在途改动一并裹进来。同文件混有他人改动时，用 `git apply --cached` 只暂存确认属于本轮的 hunk，不能整文件带入。
     - **提交前先 `git status --short` 核对工作区**：存在不属于本轮改动的文件（用户或其他 agent 的在途编辑、遗留脏文件）时**一律绕开、不提交**，必要时在汇报里点名交用户处置。**不得对用户及其他 agent 的在途改动做提交、stash、checkout、clean、删除或回滚中的任何一种**；不为得到 clean HEAD 擅自清理工作区。其他条目提到「不碰他人在途改动」均指本条。
-    - **每次 `git commit` 完成后必须立即 `git push` 同步到远端**，不得让已提交的 commit 滞留本地；本轮结束时 `git status -sb` 首行不得残留 `ahead` 计数。该同步已获用户长期授权，无需逐次确认；凭据走 gh CLI（`credential.https://github.com.helper=!/usr/bin/gh auth git-credential`），HTTPS 免交互。**所有 commit 都推送**：每次 commit 后必须确认 `git status -sb` 首行没有 `ahead`；本轮结束前不得留下未推送的 commit（开工与提交后的自动检查见第 29 条）。**声明式例外只有三项**：当前分支没有 upstream、仓库是第三方 fork、当前机器是无凭据一侧时，不得自行推送，先问用户再决定是否 `git push -u origin <branch>`（2026-10-19 删除原「项目 `AGENTS.md` 声明本仓库不继承自动推送授权」这一项，项目不得再以声明方式豁免推送）；另有本条末项 `sub/` 分支与合并后审查 FAIL 两项显式例外，以及第 12 条冻结期不提交。
+    - **每次 `git commit` 完成后必须立即 `git push` 同步到远端**，不得让已提交的 commit 滞留本地；本轮结束时 `git status -sb` 首行不得残留 `ahead` 计数。该同步已获用户长期授权，无需逐次确认；凭据走 gh CLI（`credential.https://github.com.helper=!/usr/bin/gh auth git-credential`），HTTPS 免交互。**所有 commit 都推送**：每次 commit 后必须确认 `git status -sb` 首行没有 `ahead`；本轮结束前不得留下未推送的 commit（开工与提交后的自动检查见第 29 条）。**声明式例外只有三项**：当前分支没有 upstream、仓库是第三方 fork、当前机器是无凭据一侧时，不得自行推送，先问用户再决定是否 `git push -u origin <branch>`；但为传输文件而在用户自己仓库新建的分支，首次 `git push -u` 按第 31 条自行执行（2026-11-10）（2026-10-19 删除原「项目 `AGENTS.md` 声明本仓库不继承自动推送授权」这一项，项目不得再以声明方式豁免推送）；另有本条末项 `sub/` 分支与合并后审查 FAIL 两项显式例外，以及第 12 条冻结期不提交。
     - push 只推当前分支到其既有 upstream（裸 `git push`）。**禁止 `git push --force` 与 `--force-with-lease`**。push 被拒（非快进、认证失败、网络不可达）时立即停止，将 git 原始报错交用户处置，不得改写历史或反复重试。**例外（用户逐次批准，2026-09-26）**：本地分支带着他人在途 commit、又必须把自己的改动同步到远端时，用 plumbing 在远端 HEAD 上构造**只含自己改动文件**的 commit 并 `git push origin <sha>:refs/heads/<分支>` 快进推送，本地再落一个以该 commit 为第二父的合并提交（脚本与流程见第 25 条同步机制）；被拒仍立即停止，最多重建一次，不 force。
     - **禁止 `git clean -x`、`git clean -X`** 及等效删除被忽略产物的清理方式（会删掉 `<STORE_ROOT>` 下全部不进 git 的数据，并破坏 worktree 管理状态）。带覆盖选项或清空输出根的命令执行前，核实确切目录、符号链接目标、内容归属和授权；不能因文件未被 Git 跟踪就认为可以删除。检查历史优先使用 `git log`、`git show`、`git ls-tree`、`git diff`；需要运行历史版本时使用隔离 worktree 或恢复分支，不能覆盖用户现有修改。
     - **计划执行模式的 `sub/` 提交例外（2026-10-01 新增；机制见 `CLAUDE.md`「计划执行模式」）**：主会话按已批准计划派出的写入型子代理在各自分支上的提交，subject 固定前缀 `sub/<子任务编号>: ` + 中文描述，body 只写目标、改动文件、验证命令与判定行三项，**不占项目版本号、不套 `<COMMIT_SUBJECT_STYLE>`**；这些提交算「本轮自己改的内容」，经主会话 `--no-ff` 合并提交原样进历史并随合并提交 push（用户 2026-10-01：「尽可能保留子代理里的每一个commit信息」）。本条六项 body 由合并提交承担，合并提交 subject 按项目体例递增。`sub/` 分支本身不是推送对象；合并后审查 FAIL 时合并提交以 `ahead` 留本地、汇报写明交用户，属本条「立即 push」的显式例外（主会话同时写入 `AGENTMETARULES_HOLD`，见第 29 条与 `CLAUDE.md`「计划执行模式」）。
@@ -248,7 +248,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
     来源：policy/AGENTS.md 规则 13、14；benchmark/AGENTS.md 规则 8 与全局执行规则；evalgl/AGENTS.md 规则 10、11；mjepa/AGENTS.md「当前运行环境与存储边界」；benchmark 日志 2026-09-12（跨运行 glob 事故）。
 
 15. **原始数据与外部资产：来源可核、身份钉死、大下载先问。**
-    - **数据路径按实际环境核实**：不猜测已有副本、数据规模或同步状态；输入需先核实来源，输出需核实实际目录。原始数据的来源与暂存按环境分叉，在项目 `AGENTS.md` 声明：为集群作业暂存的副本属**临时暂存**，必须与原件逐文件 sha256 核对同源，并在全流程验收通过后删除；原件永久保留区不动。本机没有原件时从公开/私有数据源获取，落点在工作盘下，逐文件记 sha256 入 `<STORE_ROOT>` 的 input manifest。**获取前先与用户确认落点与口径，不得自行开始几百 GB 的下载。** 留档里同时记 sha256 前缀 + 字节数，异地即可用「前缀 + 字节数双命中」判同源并传递结论。
+    - **数据路径按实际环境核实**：不猜测已有副本、数据规模或同步状态；输入需先核实来源，输出需核实实际目录。原始数据的来源与暂存按环境分叉，在项目 `AGENTS.md` 声明：为集群作业暂存的副本属**临时暂存**，必须与原件逐文件 sha256 核对同源，并在全流程验收通过后删除；原件永久保留区不动。本机没有原件时从公开/私有数据源获取，落点在工作盘下，逐文件记 sha256 入 `<STORE_ROOT>` 的 input manifest。**落点在项目声明的存储边界内（第 14 条）时，按第 31 条自行下载与同步，不再逐次问用户；落点不明、超出存储边界或口径不明时先问。**（2026-11-10 修订，原为「获取前先与用户确认落点与口径，不得自行开始几百 GB 的下载」） 留档里同时记 sha256 前缀 + 字节数，异地即可用「前缀 + 字节数双命中」判同源并传递结论。
     - **判定「有没有远端归档」必须同时查 HF 的 repo 与 Storage Buckets**（2026-09-26 MotionJEPA 清理盘点实测踩中）：model / dataset repo（`/api/models|datasets?author=…`、`hf download`）与 bucket（`hf buckets list <owner>`、`hf buckets list <owner>/<bucket> -R`）是两套互不可见的存储；只查 repo API 会把已整库归档在 bucket 里的 ckpt 与数据集（当次漏看约 620 GB）误报成「不在 HF、删了不可恢复」，据此的保留 / 删除清单整份失真。凡给出「远端有 / 没有备份」「删了能否恢复」的结论，必须附两类查询的原始输出；本地资产旁若有 `bucket-tree.json`、`download-list.txt` 一类清单，即是 bucket 归档的线索，先顺着它核实。比对同源用 bucket 内 `SHA256SUMS*` 与本地 sha256，不用 `xetHash` 代替 sha256。
     - **上传到 HF 的文件必须读回校验，且校验不在本机做**（2026-10-03 用户原话「上传HUGingFace的文件需要校验。但是校验不要在本机进行你可以生成一个在greatlake上的纯CPUJ0B来实现。以后都要这么做写进AgentMetarule」）：
       - 有集群访问的环境：上传后在 greatlakes 起一个纯 CPU job（`standard` 分区、直接 `sbatch` 跑完即退），逐对象流式读回、比对 sha256、字节数与对象数，末行判定行 `HF_VERIFY=PASS|FAIL`；规格、凭据与例外边界以 [`greatlakes.md`](greatlakes.md)「HF 上传校验 job」为准。
@@ -366,7 +366,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
       - **项目副本只改标记外内容**：标记块内禁止手改；在项目里发现正本需要修改时，回正本仓库改正本再 `apply`，不在副本里先改后补。项目对正本的偏离一律写成标记外的按条号覆盖项。
       - `apply` 写的是别的位置：只写 `sync-targets.json` 登记的文件（迁移完成后只剩全局配置）；`self-apply` 只写 `--root` 指定仓库根目录里已有标记块的三份规则文件。目标工作区的在途改动、暂存、提交与推送按目标仓库自己的第 11 条口径处理。
       - **每次开工核对同步（2026-10-14 新增，2026-10-19 改为指向第 29 条）**：项目仓库的开工同步（fetch 本仓库与子模块、快进、补推、子模块更新到正本最新、`self-apply`、同一 commit 提交指针与规则文件并推送）一律按第 29 条执行，不再在本机正本 clone 里逐仓库比对 `src=`；有标记块但还没有子模块的检出（新 clone、第二份检出），开工时由第 29 条自动接入子模块。全局 `CLAUDE.md`（下条）不能用子模块，仍在开工时先在本机正本 clone 里 `git fetch origin` 并把本地 `main` 快进到 `origin/main`（只接受 fast-forward；本地有未推送提交或两边分叉时停下把 `git status -sb` 原文交用户，不 rebase、不 merge），再 `check --repo global-claude`，落后**直接** `apply`、事后在当轮汇报里列出前后 `src=`；同步脚本比的是本机正本 HEAD，不会自己去读 GitHub，所以 fetch 这一步不得省（2026-10-16 新增）。`sync-targets.json` 的路径按机器区分（2026-10-16 新增）：顶层 `machines.<主机名前缀>` 段按目标名覆盖 `canon` 与目标的 `path`，或用 `path: null` 标记本机没有的目标；脚本按 `hostname` 最长前缀自动选用并在 `MACHINE=` 判定行报出，`AGENTMETARULES_MACHINE=<键>` 可强制指定；新机器在 `machines` 段登记本机的正本 clone 与全局配置路径并随正本提交。处在冻结期（第 12 条 `AGENTMETARULES_HOLD`）的仓库不在冻结 HEAD 上提交，改为切独立 worktree 分支完成回流、冻结结束后再合并，并把待合并事项写进该仓库计划或进度文件。用户原话（2026-10-14）：「以后你每次都同步」「告诉我你要更新哪几个仓库 我批准后再更新」「这个也要写入agentmetarules」。2026-10-15 修订原话：「都同步 以后不要问 都同步」。
-      - **全局配置也是回流目标（2026-10-16 新增）**：每台机器的全局 `CLAUDE.md`（`$CLAUDE_CONFIG_DIR/CLAUDE.md`，默认 `~/.claude/CLAUDE.md`）对本机所有目录、所有会话生效，包括未接入正本的目录，因此也带一个标记块 `common-global`，正本是 [`CLAUDE.global.md`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/CLAUDE.global.md)：第 1、3、7、11、26、28、29、30 条与 `CLAUDE.md`「Workflow 与 Agent 模型」「Monitor 工具」「hook 配置」的**自包含摘录**（语言、子代理派发政策、跨会话沟通、uv、detached tmux、Monitor、git 提交纪律、开工与提交后的同步检查、对外发送确认），标记外只写本机专属（路径、集群有无、凭据、配置目录、正本 clone 位置）；仍然**不得 `@` 导入正本**（双份注入每会话多占约 30k token）。它在 `sync-targets.json` 登记为目标 `global-claude`（路径 `$CLAUDE_CONFIG_DIR`，文件 `CLAUDE.md`），上条「每次开工核对同步」里的全局部分对它适用：开工时 `check --repo global-claude`，落后**直接 `apply`**（全局文件不在 git 里，无 commit／push，只在当轮汇报里列出前后 `src=`）。接入正本的仓库里以仓库内标记块为准，`common-global` 只是兜底；改被摘录的条目时，**同一正本 commit 里同步改 `CLAUDE.global.md`**，不得只改一处。新机器：复制 `templates/CLAUDE.global.md`（MacBook 用 `templates/CLAUDE.global.macbook.md`）到全局路径、填本机专属，在 `machines` 段登记本机，再 `apply --repo global-claude`、`check --repo global-claude`。用户原话（2026-10-16）：「我有每个仓库的信息，你同步到全局是否可以？就是agentmetarules」「现在就做然后你在AgentMetaRose里面也要写清楚每次都要回流到全局配置」「现在已经有每次都会和GitHub同步的机制了吗?」。
+      - **全局配置也是回流目标（2026-10-16 新增）**：每台机器的全局 `CLAUDE.md`（`$CLAUDE_CONFIG_DIR/CLAUDE.md`，默认 `~/.claude/CLAUDE.md`）对本机所有目录、所有会话生效，包括未接入正本的目录，因此也带一个标记块 `common-global`，正本是 [`CLAUDE.global.md`](https://github.com/hongzefu/AgentMetaRules-hongzefu/blob/main/CLAUDE.global.md)：第 1、3、7、11、26、28、29、30、31 条与 `CLAUDE.md`「Workflow 与 Agent 模型」「Monitor 工具」「hook 配置」的**自包含摘录**（语言、子代理派发政策、跨会话沟通、uv、detached tmux、Monitor、git 提交纪律、开工与提交后的同步检查、对外发送确认），标记外只写本机专属（路径、集群有无、凭据、配置目录、正本 clone 位置）；仍然**不得 `@` 导入正本**（双份注入每会话多占约 30k token）。它在 `sync-targets.json` 登记为目标 `global-claude`（路径 `$CLAUDE_CONFIG_DIR`，文件 `CLAUDE.md`），上条「每次开工核对同步」里的全局部分对它适用：开工时 `check --repo global-claude`，落后**直接 `apply`**（全局文件不在 git 里，无 commit／push，只在当轮汇报里列出前后 `src=`）。接入正本的仓库里以仓库内标记块为准，`common-global` 只是兜底；改被摘录的条目时，**同一正本 commit 里同步改 `CLAUDE.global.md`**，不得只改一处。新机器：复制 `templates/CLAUDE.global.md`（MacBook 用 `templates/CLAUDE.global.macbook.md`）到全局路径、填本机专属，在 `machines` 段登记本机，再 `apply --repo global-claude`、`check --repo global-claude`。用户原话（2026-10-16）：「我有每个仓库的信息，你同步到全局是否可以？就是agentmetarules」「现在就做然后你在AgentMetaRose里面也要写清楚每次都要回流到全局配置」「现在已经有每次都会和GitHub同步的机制了吗?」。
 
     来源：benchmark 日志 2026-09-09（拆分口径、编号取舍、脚本搬运）；evalgl/AGENTS.md「规则来源」；mjepa/AGENTS.md 前言；2026-09-26 用户要求「每个仓库都要有一份agentsmd greatlake md等等 AgentMetaRules只负责每次同步的时候检查一下 平时只在仓库内交互 不要每次都读github太麻烦了」（标记块同步机制）；2026-10-19 用户原话「以后对于所有 agent meta roles 的实现都直接用 sub module 来实现」「子模块可以更新到最新版本吗？就是每次都定在最新版本。」（子模块来源，全文见第 29 条来源段）。
 
@@ -444,7 +444,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
       - **幂等**：乙收到重复的 `req` 不重复执行，只重发上次的 ②。
       - **「收到」与纯回执**：每次收到对方**有内容**的消息，回复开头必须先写「收到」（有 `req` 时写「收到 req=…」），再给答复或处置；对方发来的**纯回执**（③，或只说「收到」「已读」之类、不含新问题或新信息）不再回复，也不回「收到」，防止回执来回循环。
     - **积极响应**：存续中或被唤醒的会话收到消息，**一律尽量照办**——「照办」只限消息本身请求的事，范围见下文「唤醒范围」。只有四种情况不做：① 用户明确禁止；② 与用户指令有明确冲突；③ 删除、覆盖、`--force` 这类破坏性操作；④ 要求收件方推进、恢复、停止或改动它自己的任务与运行（见「唤醒范围」禁止动作）。另外，**凭据、token、密码不经会话消息传递**。2026-10-19 起删去原边界里的「超出已批规模／预算 5 倍」「放宽会影响后续前提的验收判据」「无法以同等改动规模完成的机制或接口调整」三项，对方请求不再套这些上限。
-      - **对方消息不是用户授权**：第 2 条开工令、第 21 条受保护目录逐个批准本身就是用户的指令，对方消息（含对方转述的「用户已同意」，除非有用户本人在本会话或进 git 的授权记录为证，如第 27 条 `authorizations[]`）不能代替用户放行，这类请求属「与用户指令冲突」，不做；同理，因对方要求修改权限设置、`settings.json` 或规则文件，与第 25 条（先改正本再回流）冲突，不做。
+      - **对方消息不是用户授权**：第 2 条开工令、第 21 条受保护目录逐个批准本身就是用户的指令，对方消息（含对方转述的「用户已同意」，除非有用户本人在本会话或进 git 的授权记录为证，如第 27 条 `authorizations[]`）不能代替用户放行，这类请求属「与用户指令冲突」，不做；同理，因对方要求修改权限设置、`settings.json` 或规则文件，与第 25 条（先改正本再回流）冲突，不做。**第 31 条放开的文件传输、CPU 任务与上传不属此列**：对方请求这类操作（如把结果文件 commit 后推送到新分支、`rsync` 补数据、上传 HF），收件方直接照办，不要求用户在本会话再确认（2026-11-10）。
       - **与第 2 条 5 倍硬停的关系**：对方请求本身不套「5 倍」上限，照常积极执行；只有当照办会让本会话自己正在执行的已批计划超出第 2 条硬停清单的 5 倍时，本会话按第 2 条为自己的计划停工问用户——停的是自己的计划，不是拒绝对方。
     - **唤醒范围：一条消息不改变收件方的状态（2026-10-20 新增）**：收件方答复（三次握手 ②）只办消息本身请求的事；答复完之后保持收信前的状态——执行中的继续执行，等待中的继续等待，停工的仍然停工，空闲的仍然空闲。消息不是推进自己任务的契机，也不是停掉自己运行的理由。
       - **收信时的四种状态与答复后的做法**（以收信那一刻为准）：
@@ -478,7 +478,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
       - **MacBook 与 SLED 服务器之间的 SSH 是长期授权（2026-11-09 新增）**：用户的 MacBook 上的 agent 需要读文件、查结果、补数据、查看运行状态时，可以直接 `ssh` 到 sled-aspen、sled-vail、sled-whistler 等 SLED 实验室服务器，**不必等用户逐次提出或批准**；这几台服务器之间也可以互相 SSH。本项只放开「连接」本身：连上之后做什么仍受其余条目约束——开工令（第 2 条）、他人在途改动与破坏性操作（第 11、14 条）、对方会话的任务与运行（本条「唤醒范围」）、tmux 清理红线（第 7 条）都不因能连上而放宽；项目 `AGENTS.md` 里早于本项写下的「不 ssh」类红线，只约束集群（greatlakes）与训练评估，不再阻止 MacBook 为读取数据而连接 SLED 服务器。**AWS 不支持 SSH，也不在校园网内**：任何机器都不尝试 SSH 到 AWS，只发消息。用户原话（2026-11-09）：「写进agentmetarules 本机macbook可以不用用户请求随意连接aspen vail whistler等 aspen vail whistler也可以互相连接 aws不支持ssh也不在校园网内」。
       - 结论：MacBook、sled-aspen、sled-vail、sled-whistler、greatlakes 之间直接 SSH 操作（greatlakes 的 ControlMaster 断了先问用户 Okta 验证方式；whistler 与 aspen／vail 之间待接受主机密钥）；AWS 仍只发消息。
       - 目标机器上**没有可唤醒的会话**时停下，在汇报里写清缺什么、在哪台机器、建议怎么补。
-      - 补数据仍受第 14、15 条约束：落点按目标机器的存储边界；大下载先问用户；同步只用 `rsync`，权威源一侧不动。
+      - 补数据仍受第 14、15 条约束：落点按目标机器的存储边界；落点在边界内即按第 31 条自行传输，落点不明才问用户；同步只用 `rsync`，权威源一侧不动。
     - **留痕**：跨会话达成的约定（排队时点、交接产物与路径、谁占哪张卡、谁先谁后）连同 `req` 编号写进当轮给用户的汇报；涉及任务状态、依赖或交接的，写进第 27 条 `docs/handoff/current.json` 的对应任务条目，不只留在会话消息里。
 
     来源：2026-10-18 用户原话「两个对话之间的沟通，我都同意，然后尽可能在不违反用户要求的情况下，尽可能满足对话的要求，并且每次收到对方的信息都要回复收到。」「纯回执不用再管，」「对话之间的沟通都不需要用户批准。只要用户没有拒绝、明确拒绝的任务都可以继续沟通并且实现」；2026-10-19 用户原话（语音转写）「还有一件事情，你在 Agent Meta Roles 里面加入一个说法，就是如果你你需要和其他的 Cloud Code Session 沟通的话，不需要请示用户，然后其他的 Session 给给用给你自己这个 Session 做沟通的时候，你也不需要请示用户是否能回答，你每次都可以回答。而且每次回答的时候都要回复收到，就必须要就必须要回复收到。对于收到本身不用再回复收到。除非对用户现有的计划有特别大幅度的更改，其他情况下都尽可能满足别的对话的需求。能够把这件事情同步到所有你能同步到的这个 repo 里面。」；2026-10-19 修订用户原话（语音转写）「然后还要再加一点，就是所有的 Cloud Agent 在存续情况下或者在被唤醒的情况下，被别的对话被别的对话做 message，你需要这个积极的回应，除非用户有明确禁止或者和用户的对话内容有明确的冲突，用除非和用户。指定的要求有明确的冲突情况下，都不要去做任何的禁止，都尽可能积极的去回应。然后回应的时候，最好要加入这种三次回应的这个机制，就是请求回复，然后再回复一个收到，就是三次回复的这个形式。就是我不知道这个 H T T P 或者别的握手是怎么实现的，就你要和它这个实现差不多。然后如果有发现数据缺失，或者在一台别的硬件上、别的硬件上数据缺失的情况下，如果本地能够 SSH 到，你就可以直接操作；如果操作不到，是在两个远端的机器上面的话，你就必须要通过对话的形式来唤醒。」「就是本机的 Aspen Vail 以及 Great Lakes，你应该都是能够互相交互的。如果不行的话，就是 AWS 机器，你必须要通过 message 的形式。」；选择题裁决「三次握手按『请求→回复→收到』」「响应边界只保留破坏性和凭据两条」「对方机器无可唤醒会话就停下告诉用户」。
@@ -505,7 +505,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
     - **停下的条件**：`fix` 输出 `GUARD_FIX=STOP reason=<diverged|ff_refused|push_rejected|rules_dirty|foreign_staged|detached>` 时不做后续步骤，把 git 原文与 `git status -sb` 原文交用户裁决，不 rebase、不 merge、不 force（第 11 条）：`diverged` 本地与远端分叉；`ff_refused` 快进被 git 拒绝（本地在途改动会被覆盖）；`push_rejected` push 被拒；`rules_dirty` 三份规则 md 或 `.gitmodules` 有别人的在途改动；`foreign_staged` 暂存区里有不属于本次的内容；`detached` HEAD 处于 detached。此外 `fix` 各步骤自身失败时也输出 STOP：`submodule_add_failed`（③ 接入子模块失败）、`submodule_update_failed`（④ 更新子模块失败）、`self_apply_failed`（⑤ 写回规则文件失败）、`add_failed`（⑥ 暂存失败）、`commit_failed`（⑥ 提交失败），同样停下、把原文交用户（实现见 `scripts/repo_guard.py`）。工作区其他文件有改动时照样尝试快进，git 不拒绝就照常对齐，提交时绕开这些文件（第 11 条）。**批次中**（一次处理多个仓库）某个仓库 STOP 时，跳过该仓库、继续处理其他仓库，不等裁决；STOP 原文列进收尾汇报，由用户逐项裁决。
     - **豁免**（`PUSH_STATE=EXEMPT`）：
       - `reason=sub_worktree`：分支名匹配 `worktree-agent-*`（子代理 worktree），不提交、不推送。
-      - `reason=no_upstream`：当前分支没有 upstream；`fix` 照常提交、不推送，agent 问用户一次是否 `git push -u`（第 11 条「没有 upstream」例外）。
+      - `reason=no_upstream`：当前分支没有 upstream；`fix` 照常提交、不推送，agent 问用户一次是否 `git push -u`（第 11 条「没有 upstream」例外）；为传输文件新建的分支按第 31 条直接 `git push -u`。
       - `reason=hold`：存在本地标记文件 `$(git rev-parse --git-dir)/AGENTMETARULES_HOLD`（在 `.git` 里，不进版本库）。由主会话在两种情况下写入：合并后审查 `POST_MERGE_REVIEW=FAIL`（写合并提交 sha 与原因，`CLAUDE.md`「计划执行模式」）、进入第 12 条冻结期（写 `freeze` 与冻结锚点 sha）。`fix` 看到它就不提交、不推送、不快进，只输出三行判定和文件内容；用户裁决或打包完成后由主会话删除该文件。
     - **提交后检查**：每次 `git commit` 之后确认 `git status -sb` 首行没有 `ahead`，有就立即裸 `git push`（第 11 条）。Claude Code 由全局 `PostToolUse` hook（匹配 Bash 里的 `git … commit`）自动检查，有未推送 commit 时注入 `PUSH_STATE=AHEAD n=<n> branch=<b>` 提醒；豁免情形不提醒。
     - **Codex 手动执行**：Codex 没有 hook，开工时手动跑 `start` 与 `fix` 并把三行判定写进第一条回复，每次 commit 后手动跑 `git status -sb` 核对。
@@ -527,6 +527,24 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
     - **违例处理**：误发后立刻如实告诉用户发了什么、给谁、何时（美东），不隐瞒、不自行补救（撤回、删除、再发更正都是新的对外动作，同样先确认）。
 
     来源：2026-11-09 MacBook 会话。用户让 agent 帮忙 finalize 与导师的 Zoom 会议，agent 把「帮我finalize」当成同意，直接向导师发出日历邀请，用户原话「不要直接发！！！！！！！」，只能删除重建。随后用户原话：「以后对外发的都要我确认同意 把这个写入agentmetarules等」「以及对外发的 除非用户授权 不要直接使用电脑控制 可以用现在这样的方法」（「现在这样的方法」= 用 Zoom／Google Calendar／Slack 连接器起草、给用户看终稿、确认后再调用）。
+
+31. **文件传输、CPU 任务与上传可自行执行，只有长时间 GPU 任务需要用户批准（2026-11-10 新增）。**
+    - **自行执行、不逐次问用户的范围**：
+      - **文件传输**：用户自己的机器、仓库与存储之间搬运文件——把结果文件 commit 进用户自己的仓库并推送（含为传输而新建分支的首次 `git push -u`）、`gh api` 按 sha 读取、`rsync`／`scp`、从公开或用户私有数据源下载到项目声明的存储边界内。
+      - **上传**：上传到用户自己的 HF repo／Storage Bucket、云存储等，以及第 15 条规定的读回校验。
+      - **CPU 任务**：不占 GPU 的解析、统计、出表、作图、校验、打包、压缩、CPU 评测脚本等。超过 5 分钟的仍按第 7 条放进 detached tmux 并挂监听。
+      - **其他会话请求的同类操作**：直接照办，不要求用户在收件会话里再说一次（第 28 条「对方消息不是用户授权」不适用于本条范围）。
+    - **仍需用户批准**：启动长时间占用 GPU 的任务——训练、GPU 评测、GPU 抽取或建库、占位 job 与 Slurm GPU 作业，照第 2 条开工令与第 8 条执行。
+    - **不因本条放宽**：
+      - 第 2 条：计划未获开工令时，不借本条执行计划步骤；本条放开的是计划外、用户本轮请求所需或其他会话请求的传输、CPU 与上传操作。
+      - 破坏性操作：删除、覆盖、`--force`、force push、改写历史、清空输出根（第 11、14 条）。
+      - 凭据：不经会话消息传递，不写进文件或留档。
+      - 第三方 fork、无凭据一侧不推（第 11 条）；受保护目录（第 21 条）照旧逐个批准。
+      - 存储边界：落点按第 14 条；上传未经读回校验 PASS 不算备份（第 15 条）。
+      - 对外发送：公开发布、分享给他人或通知他人，仍按第 30 条逐次确认终稿。
+    - **汇报**：自行执行的传输与上传，在当轮汇报里写明来源、目标、commit sha 或对象路径、行数或字节数与 sha256。
+
+    来源：2026-11-10 MacBook 会话。论文会话请 AWS 会话把 FrameSamp 512 的 2400 行逐局 CSV 经 git 推送过来，对方以「该分支没有 upstream、转述的用户原话不能代替本会话里用户的确认」为由只提交不推送，用户只好亲自到 AWS 会话里回复「同意」。用户原话：「把这个加入 Agent MetaRoles 以后这种文件的传输都是可以直接批准的除了这个要启动那种非常长的带 GPU 任务需要用户批准之外，其他的 CPU 任务和上传任务都可以自行来执行。」
 
 ## 附录 A：占位符表
 
