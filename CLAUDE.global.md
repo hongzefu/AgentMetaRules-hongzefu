@@ -1,15 +1,15 @@
 # CLAUDE.global.md — 每台机器全局 `CLAUDE.md` 的通用块（正本 4）
 
-本文件是各机器全局 `CLAUDE.md`（`$CLAUDE_CONFIG_DIR/CLAUDE.md`，默认 `~/.claude/CLAUDE.md`）里 `common-global` 标记块的正本。全局文件对本机**所有目录、所有会话**生效，包括没有接入正本的目录（例如直接在工作盘根目录开的会话），所以这里只放一份**自包含的摘录**：语言（第 1 条）、子代理派发政策（`AGENTS.md` 第 26 条与 `CLAUDE.md`「Workflow 与 Agent 模型」）、跨会话沟通（第 28 条）、uv（第 3 条）、detached tmux（第 7 条）、Monitor（`CLAUDE.md`「Monitor 工具」）、git 提交纪律（第 11 条）、开工与提交后的同步检查（第 29 条与 `CLAUDE.md`「hook 配置」）、对外发送确认（第 30 条）。不 `@` 导入正本——双份注入每会话多占约 30k token（见 README「维护规则」）。
+本文件是各机器全局 `CLAUDE.md`（`$CLAUDE_CONFIG_DIR/CLAUDE.md`，默认 `~/.claude/CLAUDE.md`）里 `common-global` 标记块的正本。全局文件对本机**所有目录、所有会话**生效，包括没有接入正本的目录（例如直接在工作盘根目录开的会话），所以这里只放一份**自包含的摘录**：语言（第 1 条）、子代理派发政策（`AGENTS.md` 第 26 条与 `CLAUDE.md`「Workflow 与 Agent 模型」）、跨会话沟通（第 28 条）、uv（第 3 条）、detached tmux（第 7 条）、Monitor（`CLAUDE.md`「Monitor 工具」）、git 提交纪律（第 11 条）、开工与提交后的同步检查（第 29 条与 `CLAUDE.md`「hook 配置」）、对外发送确认（第 30 条）、文件传输与 CPU 任务（第 31 条）、产出归档（第 32 条）。不 `@` 导入正本——双份注入每会话多占约 30k token（见 README「维护规则」）。
 
 - **优先级**：接入正本的仓库里以仓库内 `AGENTS.md` / `CLAUDE.md` 标记块为准（更完整），本块只是兜底，两者冲突按仓库内规则执行。
-- **维护**：改第 1、3、7、11、26、28、29、30、31 条或 `CLAUDE.md` Agent／Monitor／hook 节时，**同一正本 commit 里同步改本文件**，不得只改一处；回流机制见 `AGENTS.md` 第 25 条「全局配置也是回流目标」（目标名 `global-claude`；全局文件不能用子模块，每次开工在本机正本 clone 里 fetch 快进后 `check`／`apply --repo global-claude`）。
+- **维护**：改第 1、3、7、11、26、28、29、30、31、32 条或 `CLAUDE.md` Agent／Monitor／hook 节时，**同一正本 commit 里同步改本文件**，不得只改一处；回流机制见 `AGENTS.md` 第 25 条「全局配置也是回流目标」（目标名 `global-claude`；全局文件不能用子模块，每次开工在本机正本 clone 里 fetch 快进后 `check`／`apply --repo global-claude`）。
 - **机器专属**内容（路径、集群有无、凭据、配置目录、正本 clone 位置）写在全局文件的标记外，骨架见 [`templates/CLAUDE.global.md`](templates/CLAUDE.global.md)，MacBook 用 [`templates/CLAUDE.global.macbook.md`](templates/CLAUDE.global.macbook.md)。
 
 <!-- AGENTMETARULES:BEGIN common-global -->
 ## 通用规则（AgentMetaRules 正本摘录，勿手改）
 
-本节由 [AgentMetaRules-hongzefu](https://github.com/hongzefu/AgentMetaRules-hongzefu) 的 `CLAUDE.global.md` 经 `scripts/sync_rules.py` 回流，是 `AGENTS.md` 第 1、3、7、11、26、28、29、30、31 条与 `CLAUDE.md`「Workflow 与 Agent 模型」「Monitor 工具」「hook 配置」的自包含摘录。**当前目录或其上级已有带 `AGENTMETARULES` 标记块的 `CLAUDE.md` / `AGENTS.md` 时，以仓库内规则为准**（更完整，含第 0 条环境判定、第 2 条计划与开工令、第 27 条交接等），本节只约束未接入正本的目录，并在两者一致处重申。
+本节由 [AgentMetaRules-hongzefu](https://github.com/hongzefu/AgentMetaRules-hongzefu) 的 `CLAUDE.global.md` 经 `scripts/sync_rules.py` 回流，是 `AGENTS.md` 第 1、3、7、11、26、28、29、30、31、32 条与 `CLAUDE.md`「Workflow 与 Agent 模型」「Monitor 工具」「hook 配置」的自包含摘录。**当前目录或其上级已有带 `AGENTMETARULES` 标记块的 `CLAUDE.md` / `AGENTS.md` 时，以仓库内规则为准**（更完整，含第 0 条环境判定、第 2 条计划与开工令、第 27 条交接等），本节只约束未接入正本的目录，并在两者一致处重申。
 
 ### 语言：始终使用简体中文
 
@@ -125,4 +125,12 @@
 - **仍需用户批准**：启动长时间占用 GPU 的任务（训练、GPU 评测、GPU 建库、占位 job／Slurm GPU 作业），按第 2 条开工令与第 8 条。
 - **不放宽**：计划未获开工令时不借此执行计划步骤；删除／覆盖／`--force`／force push／改写历史；凭据不经消息传递；第三方 fork 与无凭据一侧不推；受保护目录；存储边界与上传读回校验；公开发布或分享给他人仍按第 30 条确认终稿。
 - **汇报**：写明来源、目标、commit sha 或对象路径、行数或字节数与 sha256。
+
+### 产出文件当轮归档进仓库（`AGENTS.md` 第 32 条摘录，2026-11-10）
+
+- **当轮归档**：交给用户看过或用户可能再用的产出（图、表、出图／制表脚本及其数据、报告、幻灯片等），同一轮放进仓库合适位置，按第 11 条逐路径提交并推送；scratchpad／`/tmp` 只放用后即弃的中间文件。
+- **连同复现材料**：图与生成它的脚本、数据放在一起；在就近 README 或出处索引里记一行来源（日期美东、会话或任务、数据出处、复现命令）。
+- **位置拿不准**：先问用户一句或放进项目约定的素材目录，不以「不确定放哪里」为由留在 scratchpad。
+- **找旧会话产出**：先在本机 `~/.claude/projects/<项目>/*.jsonl` 里按文件名或图标题 grep（或用宿主会话检索工具），不要在服务器数据盘上大范围递归搜索；找到后补归档。
+- **边界**：只管体量小、给人看的交付物；大体量派生数据、权重、日志仍按第 14、15 条落 `<STORE_ROOT>`、不进 git。
 <!-- AGENTMETARULES:END common-global -->
