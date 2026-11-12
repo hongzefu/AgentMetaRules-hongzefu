@@ -8,7 +8,7 @@
 
 ## 规则来源与优先级
 
-- `AGENTS.md` 是通用规则的唯一来源（第 0–29 条；仅第 20 条只对 Codex 生效，Claude Code 忽略；第 26 条统一两宿主子代理职责，宿主专节各自执行）。上面的 `@AGENTS.md` 会把它的正文内联进上下文。
+- `AGENTS.md` 是通用规则的唯一来源（第 0–33 条；仅第 20 条只对 Codex 生效，Claude Code 忽略；第 26 条统一两宿主子代理职责，宿主专节各自执行）。上面的 `@AGENTS.md` 会把它的正文内联进上下文。
 - **即便该导入失效，动手前也必须先完整读一遍 `AGENTS.md`。** 官方文档（2026-09-26 核实 code.claude.com/docs/en/memory）：工作目录或其上级存在 `CLAUDE.md` / `CLAUDE.local.md` 时，Claude Code 只读 `CLAUDE.md` 系文件、**不再自动读 `AGENTS.md`**——没有本文件的显式 `@AGENTS.md` 导入，`AGENTS.md` 不会进入会话上下文（早期实测于 Claude Code 2.1.232 时 memory 发现列表根本不含 `AGENTS.md`）。这一条是兜底，不可省略。
 - **动手前必须先按 `AGENTS.md` 第 0 条做运行环境判定**，并在当轮第一条回复里写明结论是环境 A 还是环境 B；判据矛盾或出现第三套硬件时按该条冲突即停。
 - 本文件只补 `AGENTS.md` 覆盖不到的 Claude Code 独有机制，共六块：Workflow 与 Agent 模型、Monitor 工具、会话交接、hook 配置、Skill 调用、plan mode 与计划文件。两份文件的分工、冲突处理（一律以 `AGENTS.md` 为准）与跨宿主中立见 `AGENTS.md` 第 25 条。
@@ -39,7 +39,7 @@
 - **合并前审查（第一次）**：主会话 ① 主检出 `git status --short --ignore-submodules=dirty` 无非预期改动；② `git diff --name-only <BASE>..<TIP>` 逐项 ⊆ 可写集合，越界即 `SCOPE=FAIL`；③ 在该 worktree 内复跑验收命令（审查子代理是纯审计不跑验收，第 22 条）；④ 派**一个**只读审查子代理（`model: "sonnet"`，不加 `isolation`），钉死 `REVIEW_BASE` / `REVIEW_TIP` 两个完整 sha，只许 `git diff <sha>..<sha>`、`git log <sha>..<sha>`、`git show <sha>:<path>`：计划条目是否完成、有无偷改集合外、接口契约是否守住、前缀与 body 是否合规、有无凭据／日志／大文件，输出 `PRE_MERGE_REVIEW=PASS|FAIL base=<sha> tip=<sha> files=<n> commits=<n> findings=<n>`。同一分支一轮只派一个审查者（「反驳同一条不得并行」）；FAIL → 不合并，findings 用 `SendMessage` 交回原子代理续改，第二轮只复核上轮 findings 与 `<旧 TIP>..<新 TIP>` 增量；两轮仍 FAIL 交用户。写入方与审查方不得是同一代理。
 - **合并（主检出唯一写者是主会话）**：`git merge --no-ff <TIP sha> -F <scratchpad 消息文件>`（合 sha 不合分支名，消除「审一版、合另一版」；不用 git 默认英文「Merge branch」）；subject 按仓库体例，body 按第 11 条详写（摘录子代理报告、`PRE_MERGE_REVIEW` 行、改动文件清单）。按分配表「合并顺序」逐个合，合一个、审一个、push 一个。**文本冲突**：集合不重叠本不该冲突，先判越界 `SCOPE=FAIL` 交回；确需整合时派整合子代理（`isolation: "worktree"` + `model: "opus"`，基于当前工作分支 HEAD）`git merge <冲突 TIP>`、解冲突（只许动分配表「共享文件归属」列出的文件）、跑验收、commit（前缀 `sub/MERGE-<n>: `），主会话对整合分支重走第一次审查后 `--no-ff` 合入。第 12 条「打包期间冻结 HEAD」期间禁止合并。
 - **合并后审查（第二次）**：每次合并后主会话 ① 跑仓库核心短测（第 4 条口径）；② `git diff --name-only <合并前 HEAD>..HEAD` 与分配表核对；③ 项目闸门（第 21 条受保护目录零 diff 等）；输出 `POST_MERGE_REVIEW=PASS|FAIL merge=<sha> tests=<结果> files=<n>`。PASS → 按第 11 条立即 `git push`（`sub/` 提交随之进远端，是 `--no-ff` 的既定代价）→ 下一个合并。FAIL → 停止后续合并、不 push、证据交用户裁决；不 `reset`／`rebase` 改历史，合并提交以 `ahead` 留本地属第 11 条显式例外；主会话同时写入 `$(git rev-parse --git-dir)/AGENTMETARULES_HOLD`（合并 sha + 原因），让 `AGENTS.md` 第 29 条的 `repo_guard.py fix` 与提交后 hook 不去补推这个合并提交（`PUSH_STATE=EXEMPT reason=hold`），用户裁决后由主会话删除该文件。
-- **清理**：`POST_MERGE_REVIEW=PASS` 且已 push 后，`git worktree list`（删前）→ 锁住先 `git worktree unlock` → `git worktree remove <路径>`（有未跟踪文件才加 `--force`，先核对里面没有实体产物目录）→ `git branch -d <分支>`（只许 `-d`，未合并分支拒删即保留交用户）→ `git worktree list`（删后，差集只少目标）。只删分配表登记的 worktree；无改动的 worktree 宿主已自动清理。
+- **清理**：`POST_MERGE_REVIEW=PASS` 且已 push、且后续闸门／冒烟／起跑不再可能要求该子代理续改后（`AGENTS.md` 第 26 条 2026-11-12 子项），`git worktree list`（删前）→ 锁住先 `git worktree unlock` → `git worktree remove <路径>`（有未跟踪文件才加 `--force`，先核对里面没有实体产物目录）→ `git branch -d <分支>`（只许 `-d`，未合并分支拒删即保留交用户）→ `git worktree list`（删后，差集只少目标）。只删分配表登记的 worktree；无改动的 worktree 宿主已自动清理。
 
 ### 运行型子代理：按授权启动、验证起跑并交接（2026-10-10 统一边界）
 
@@ -80,6 +80,7 @@
 6. `AGENTS.md` 第 7 条禁止裸 `pgrep -f` 判断存活，这条禁令**在 Monitor 里尤其致命**：pattern 字符串就写在 Monitor 自己那个 `bash -c` 的 argv 里，pgrep 永远匹配到自己 → 条件恒真 → 永远「看起来还在跑」。替代写法（括号技巧、`tmux has-session -t '=名'`、启动时 `$!` 记下的 PID）见第 7 条。
 7. **静默空转作业**（`AGENTS.md` 第 23 条）：进程活着却永不产出、日志里也不会出现任何错误行，Monitor 的过滤器必须同时覆盖项目 `CLAUDE.md` 写明的缺陷特征字符串，不能只盯 `EXIT_CODE=`。
 8. Monitor 不可用时使用当前宿主支持的等待或输出通知机制，明确监听能力的限制；不声称不存在的工具已经挂载，也不让工具缺失阻止其他已授权工作。
+9. **过滤词覆盖中文报错与项目自己的拒绝语；换日志先停旧监听；截断残片不是退出码（2026-11-12 新增）**：过滤正则除英文关键词外，必须含中文失败词与项目脚本自己的拒绝／判定语——至少 `拒绝|失败|FAIL|错误|找不到|EXIT_CODE=`，再加入口脚本实际会打印的拒绝句；写 Monitor 前先 grep 一遍入口与 runner 的 `echo`／`print`／`raise` 文案补全。同一路径的日志要改名、清理或重跑前，先 `TaskStop` 挂在该路径上的旧 Monitor（`tail -F` 按文件名跟随，会把新旧两次运行的事件混报），再为新运行挂新 Monitor。Monitor 到期或被截断时可能吐出不完整的 `EXIT_CODE=` 残片（等号后为空），退出码只认日志里完整的 `EXIT_CODE=<数字>` 行，见到残片回日志 `tail` 核对。挂监听时写下预期首个事件时间，超过一半仍无事件就主动查日志尾与进程（`AGENTS.md` 第 33 条 H）。实测踩坑（2026-11-12 policy 仓 wanraw9-s32）：过滤词漏了 runner 的「拒绝覆盖本轮日志」，冒烟被拦下后空等约 30 分钟。
 
 ## 会话交接（`AGENTS.md` 第 27 条的 Claude Code 落地）
 
