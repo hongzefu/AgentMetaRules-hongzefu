@@ -1,15 +1,15 @@
 # CLAUDE.global.md — 每台机器全局 `CLAUDE.md` 的通用块（正本 4）
 
-本文件是各机器全局 `CLAUDE.md`（`$CLAUDE_CONFIG_DIR/CLAUDE.md`，默认 `~/.claude/CLAUDE.md`）里 `common-global` 标记块的正本。全局文件对本机**所有目录、所有会话**生效，包括没有接入正本的目录（例如直接在工作盘根目录开的会话），所以这里只放一份**自包含的摘录**：语言（第 1 条）、子代理派发政策（`AGENTS.md` 第 26 条与 `CLAUDE.md`「Workflow 与 Agent 模型」）、跨会话沟通（第 28 条）、uv（第 3 条）、detached tmux（第 7 条）、Monitor（`CLAUDE.md`「Monitor 工具」）、git 提交纪律（第 11 条）、开工与提交后的同步检查（第 29 条与 `CLAUDE.md`「hook 配置」）、对外发送确认（第 30 条）、文件传输与 CPU 任务（第 31 条）、产出归档（第 32 条）。不 `@` 导入正本——双份注入每会话多占约 30k token（见 README「维护规则」）。
+本文件是各机器全局 `CLAUDE.md`（`$CLAUDE_CONFIG_DIR/CLAUDE.md`，默认 `~/.claude/CLAUDE.md`）里 `common-global` 标记块的正本。全局文件对本机**所有目录、所有会话**生效，包括没有接入正本的目录（例如直接在工作盘根目录开的会话），所以这里只放一份**自包含的摘录**：语言（第 1 条）、子代理派发政策（`AGENTS.md` 第 26 条与 `CLAUDE.md`「Workflow 与 Agent 模型」）、跨会话沟通（第 28 条）、uv（第 3 条）、detached tmux（第 7 条）、Monitor（`CLAUDE.md`「Monitor 工具」）、git 提交纪律（第 11 条）、开工与提交后的同步检查（第 29 条与 `CLAUDE.md`「hook 配置」）、对外发送确认（第 30 条）、文件传输与 CPU 任务（第 31 条）、产出归档（第 32 条）、等待点并行（第 33 条）。不 `@` 导入正本——双份注入每会话多占约 30k token（见 README「维护规则」）。
 
 - **优先级**：接入正本的仓库里以仓库内 `AGENTS.md` / `CLAUDE.md` 标记块为准（更完整），本块只是兜底，两者冲突按仓库内规则执行。
-- **维护**：改第 1、3、7、11、26、28、29、30、31、32 条或 `CLAUDE.md` Agent／Monitor／hook 节时，**同一正本 commit 里同步改本文件**，不得只改一处；回流机制见 `AGENTS.md` 第 25 条「全局配置也是回流目标」（目标名 `global-claude`；全局文件不能用子模块，每次开工在本机正本 clone 里 fetch 快进后 `check`／`apply --repo global-claude`）。
+- **维护**：改第 1、3、7、11、26、28、29、30、31、32、33 条或 `CLAUDE.md` Agent／Monitor／hook 节时，**同一正本 commit 里同步改本文件**，不得只改一处；回流机制见 `AGENTS.md` 第 25 条「全局配置也是回流目标」（目标名 `global-claude`；全局文件不能用子模块，每次开工在本机正本 clone 里 fetch 快进后 `check`／`apply --repo global-claude`）。
 - **机器专属**内容（路径、集群有无、凭据、配置目录、正本 clone 位置）写在全局文件的标记外，骨架见 [`templates/CLAUDE.global.md`](templates/CLAUDE.global.md)，MacBook 用 [`templates/CLAUDE.global.macbook.md`](templates/CLAUDE.global.macbook.md)。
 
 <!-- AGENTMETARULES:BEGIN common-global -->
 ## 通用规则（AgentMetaRules 正本摘录，勿手改）
 
-本节由 [AgentMetaRules-hongzefu](https://github.com/hongzefu/AgentMetaRules-hongzefu) 的 `CLAUDE.global.md` 经 `scripts/sync_rules.py` 回流，是 `AGENTS.md` 第 1、3、7、11、26、28、29、30、31、32 条与 `CLAUDE.md`「Workflow 与 Agent 模型」「Monitor 工具」「hook 配置」的自包含摘录。**当前目录或其上级已有带 `AGENTMETARULES` 标记块的 `CLAUDE.md` / `AGENTS.md` 时，以仓库内规则为准**（更完整，含第 0 条环境判定、第 2 条计划与开工令、第 27 条交接等），本节只约束未接入正本的目录，并在两者一致处重申。
+本节由 [AgentMetaRules-hongzefu](https://github.com/hongzefu/AgentMetaRules-hongzefu) 的 `CLAUDE.global.md` 经 `scripts/sync_rules.py` 回流，是 `AGENTS.md` 第 1、3、7、11、26、28、29、30、31、32、33 条与 `CLAUDE.md`「Workflow 与 Agent 模型」「Monitor 工具」「hook 配置」的自包含摘录。**当前目录或其上级已有带 `AGENTMETARULES` 标记块的 `CLAUDE.md` / `AGENTS.md` 时，以仓库内规则为准**（更完整，含第 0 条环境判定、第 2 条计划与开工令、第 27 条交接等），本节只约束未接入正本的目录，并在两者一致处重申。
 
 ### 语言：始终使用简体中文
 
@@ -38,8 +38,10 @@
   - 非 AWS Codex 的所有角色子代理及任意层级的递归子代理，除 Luna 外默认 `medium`、允许 `medium` 或更高，Luna 固定 `high`；主代理不受此项约束。每次派发显式指定 `model` 和 `reasoning_effort`，非 Luna 默认 `reasoning_effort="medium"`，Luna 必须 `reasoning_effort="high"`；全历史 fork 无法覆盖时使用 `fork_turns="none"` 并提供自含说明。无法设置或确认时停止该项派发并报告，不依赖默认值或继承规避要求。此为跨仓库通用规则，取代原非 AWS 子代理最低 `high` 的要求，AWS 的 Astra + ultra 规则保持原样。
 - **生命周期：同一决策点按批并发派出、一次性交回**：独立任务在同一条消息里发出全部 Agent 调用；一份结果交回即结束，下一决策点按需新派一批，不搭长期代理网络。`SendMessage` 只用于续接被中断、只差一步或审查失败需续改的同一代理。串行依赖不并行。数量按宿主容量（`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` 与 `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS` 均设 64），满额报 `Concurrent subagent limit reached` 时等已派批次返回，不忙重试；多开只缩短等待，用量仍计入主会话额度。
 - **委派说明必须写清**：目标、上下文、工作树绝对路径与基线 sha、可读／可写文件、禁触路径、依赖、交付格式、验收命令与判定行。只读代理写明「只读，不改文件、不跑有副作用的命令」（只读提示不是权限沙箱）。同一文件单一 owner，告知「代码库里不只你一个在改：不碰集合外文件、不回滚他人改动」。有计划的任务按计划里的「子代理分配表」派，已授权范围内可调整职责、数量、依赖与整合顺序并说明原因；无分工时先形成明确委派再派，不把「可以自行拆分」当成可以扩权。
-- **写入型子代理统一独立 worktree**：不得以写集不相交为由共用主检出写代码；派发前核对全局 `settings.json` 的 `worktree.baseRef` 为 `"head"`。子代理只在自己的 worktree 工作，commit subject 固定前缀 `sub/<子任务编号>: ` + 中文描述，全部原样保留；**子代理不 push、不合主分支、不 `--amend`／`reset --hard`**。主会话合并前审查（`sonnet`，钉死 `REVIEW_BASE`／`REVIEW_TIP`，输出 `PRE_MERGE_REVIEW=PASS|FAIL …`）→ `git merge --no-ff <TIP sha>` → 合并后审查（`POST_MERGE_REVIEW=PASS|FAIL …`）→ push → 清理 worktree。写入方与审查方不得是同一代理。
+- **写入型子代理统一独立 worktree**：不得以写集不相交为由共用主检出写代码；派发前核对全局 `settings.json` 的 `worktree.baseRef` 为 `"head"`。子代理只在自己的 worktree 工作，commit subject 固定前缀 `sub/<子任务编号>: ` + 中文描述，全部原样保留；**子代理不 push、不合主分支、不 `--amend`／`reset --hard`**。主会话合并前审查（`sonnet`，钉死 `REVIEW_BASE`／`REVIEW_TIP`，输出 `PRE_MERGE_REVIEW=PASS|FAIL …`）→ `git merge --no-ff <TIP sha>` → 合并后审查（`POST_MERGE_REVIEW=PASS|FAIL …`）→ push → 清理 worktree（清理不早于该子代理可能续改的最后时点，2026-11-12）。写入方与审查方不得是同一代理。**不用 worktree 里的脚本跑主数据**：脚本按自身位置推仓库根，相对路径（`<STORE_ROOT>`、资产目录）会落空，先合入或显式传全部绝对路径（2026-11-12）。
 - **运行与修代码严格分工**：运行代理发现代码问题收集证据交主会话，主会话另派独立修复代理，修复经审查、验证、整合后再交确定版本续跑。主会话是唯一的资源、预算、监听、接续和清理负责人，登记全部 JobID／tmux 名；运行代理不得自行取消 job 或清理会话。
+- **孤儿进程清理（2026-11-12）**：子代理被杀或训练崩溃后，主会话只读查 PPID=1 的 `multiprocessing.spawn`（`grep '[m]ultiprocessing.spawn'`），按 `/proc/<pid>/cwd`／`environ` 与启动时间核实属本轮后按确切 PID 终止，前后各列清单，核实不了的不动；匹配 pattern 视项目而定，`multiprocessing.spawn` 为 Python dataloader worker 示例，一律按 `/proc` 核实归属后按确切 PID 终止；子代理留下的等待类后台任务由主会话 `TaskStop`。子代理自己不按 `ps`／`grep` 找 PID 去 kill。
+- **等待点先排满并行（`AGENTS.md` 第 33 条，2026-11-12）**：每个等待点（子代理、审查、下载、GPU 任务、用户）先看 GPU／CPU／网络是否空闲，把不依赖它的工作立即派出；输入依赖提前 dry-run 列全并下载；互不依赖的 GPU 测试分卡并行；审查与同 sha 验证同时跑；子代理委派写预期时长，超 1.5 倍主动查；哈希校验、解压、解包、导出等 CPU 密集步骤先判断能否并行（进程池、`xargs -P`、`xz -T0`／`pigz`／`zstd -T0`），并发按核数留余量，启动后看 CPU 利用率，只吃满一核就改。
 - **Workflow 逐次审批**：每次生成 workflow 前先把方案（做什么、分几个 phase、规模、用什么模型）交用户批准，获准后才调 Workflow 工具；`ultracode` 关键字、任务规模等一切其他开启条件作废。`agent()` 同样按上表选模型，脚本层不加并发限制、不人为拆批。
 
 ### 跨会话沟通（`AGENTS.md` 第 28 条摘录）
@@ -96,12 +98,14 @@
 6. Monitor 里同样禁止裸 `pgrep -f`（pattern 就在 Monitor 自己的 argv 里，永远自匹配）；存活判断用 `tmux has-session -t '=名'`、`$!` PID 或括号技巧。
 7. 对可能「进程活着却永不产出」的任务，过滤词里还要加上其缺陷特征字符串，不能只盯 `EXIT_CODE=`。
 8. Monitor 不可用时如实说明，改用宿主支持的等待／通知机制，不声称已挂载。
+9. **过滤词覆盖中文报错与项目拒绝语（2026-11-12）**：至少含 `拒绝|失败|FAIL|错误|找不到|EXIT_CODE=`，并先 grep 入口与 runner 的 `echo`／`print`／`raise` 文案补全；日志改名、清理或重跑前先 `TaskStop` 同一路径上的旧 Monitor（`tail -F` 跟文件名，新旧事件会混报）；Monitor 到期截断吐出的空 `EXIT_CODE=` 残片不是退出码，回日志核对完整 `EXIT_CODE=<数字>`；超过预期首个事件时间一半仍无事件就主动查日志尾与进程。实测：漏掉「拒绝覆盖本轮日志」空等约 30 分钟（policy 仓 wanraw9-s32）。
 
 ### git 提交纪律（`AGENTS.md` 第 11 条摘录）
 
 - 每次改动完成并验证后必须 `git commit`；message 用简体中文，subject 沿用该仓库既有体例，body 至少写用户指令原话与验证结果（长改动按第 11 条六项详写）。
 - **只 `git add <逐个明确路径>`**；禁止 `git add -A`、`git add .`、`git commit -a`。提交前 `git status --short` 核对工作区，用户或其他 agent 的在途改动一律绕开，不对其做提交、stash、checkout、clean、删除或回滚中的任何一种。
 - commit 后立即裸 `git push`（已获用户长期授权），**所有 commit 都推送**：每次 commit 后确认 `git status -sb` 首行没有 `ahead`，本轮结束前不得留下未推送的 commit。例外先问用户：当前分支没有 upstream、仓库是第三方 fork、本机无凭据（2026-10-19 起项目不得再声明「不继承自动推送」）；为传输文件在用户自己仓库新建的分支首次 `git push -u` 按第 31 条自行执行。**禁止 `git push --force` 与 `--force-with-lease`**；push 被拒即停、把 git 原文交用户，不改写历史、不反复重试。禁止 `git clean -x` / `git clean -X`。
+- 提交信息先写文件再 `git commit -F <文件>`，不用 `printf`／`echo -e` 拼接（`%` 会被当格式符，2026-11-12 实测失败）。
 
 ### 开工与提交后的同步检查（`AGENTS.md` 第 29 条与 `CLAUDE.md`「hook 配置」摘录）
 
