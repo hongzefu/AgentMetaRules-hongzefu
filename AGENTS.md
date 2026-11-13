@@ -410,7 +410,7 @@ command -v micromamba >/dev/null && echo "micromamba: 有" || echo "micromamba: 
     - **子代理结束与训练崩溃后由主会话清理孤儿进程（2026-11-12 新增）**：子代理被 timeout 杀掉或任务崩溃时，它起的 dataloader worker 等子进程可能被收养为孤儿（PPID=1），继续占内存、占卡或堵住管道。每次测速／训练类子代理交回或被杀后、每次训练崩溃后，主会话只读核查 `ps -eo pid,ppid,etimes,rss,args | awk '$2==1' | grep '[m]ultiprocessing.spawn'`，逐个按 `/proc/<pid>/cwd`、`/proc/<pid>/environ` 里的 run 标识与启动时间核实属于本轮后，按确切 PID `kill`（不用 `pkill -f`、不按 pattern 批量），清理前后各列一次清单；匹配 pattern 视项目而定，`multiprocessing.spawn` 为 Python dataloader worker 示例，一律按 `/proc` 核实归属后按确切 PID 终止；归属核实不了的不动、交用户。子代理留下的「等待后台进程」类任务（后台 shell、Monitor）由主会话 `TaskStop`。这项清理只由主会话做，子代理不按 `ps`／`grep` 找 PID 去 kill。实测踩坑（2026-11-12 policy 仓 wanraw9-s32）：子代理被杀后留下 9 个孤儿 worker、合计约 95 GB RSS；另一次 1 个孤儿堵住 `tee`，runner 挂起。
 
     **各宿主的 Harness 生命周期与操作**
-    - **Claude Code：一次性、同一决策点按批交回**。独立任务用 Agent 工具在同一决策点并发派出，一份结果交回即结束，下一决策点按需新派；不搭建长期存活的代理网络。`SendMessage` 仅续接被中断、只差一步或审查失败需续改的同一代理（是否可续接按当前宿主）；Explore／Plan 是否返回可续接 id 按真实工具能力。工作树隔离、起跑交接、Workflow 逐次审批、Monitor 的宿主操作见 `CLAUDE.md`，职责与授权统一按本条。
+    - **Claude Code：一次性、同一决策点按批交回**。独立任务用 Agent 工具在同一决策点并发派出，一份结果交回即结束，下一决策点按需新派；不搭建长期存活的代理网络。`SendMessage` 仅续接被中断、只差一步或审查失败需续改的同一代理（是否可续接按当前宿主）；Explore／Plan 是否返回可续接 id 按真实工具能力。工作树隔离、起跑交接、Workflow 审批阈值（<50 免批）、Monitor 的宿主操作见 `CLAUDE.md`，职责与授权统一按本条。
     - **Codex：持久化、同职责续用与通信**。单个任务结束不关闭，同职责的后续工作交回原代理、保留上下文；职责整体结束或需要腾槽时再按宿主工具关闭，不长期空挂。
       - `followup_task` 给原代理追加任务并触发闲置代理新回合；`send_message` 送消息但不触发新回合，急需改向用 `interrupt_agent`；`wait_agent` 按宿主建议等待、避免忙轮询，期间主代理做不重叠工作；`list_agents` 在追加任务或汇报并发数前核对状态。
       - 有 `close_agent` 时按其语义关闭；2026-09-26 SSH App V2 实测无此工具，`rust-v0.157.0` 的空闲代理可由宿主在容量不足时卸载，不要求不存在的手动关闭操作。
