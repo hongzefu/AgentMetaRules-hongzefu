@@ -33,7 +33,8 @@
   | 画图（内联 SVG、SVG／PNG） | `fable` | 第 2 条 2026-10-12 用户指定的唯一 Fable 例外；交付前主会话必须渲染成位图目视复查重叠／对齐／溢出／图例 |
 
   - Claude Code 除画图外**不派 `fable`／Astra 或白名单外模型**；子代理及递归子代理档位不得高于本次用户主请求。大角色不降档给 Haiku，探索不升档。
-  - 职责档位与可用模型、宿主限制冲突，或模型不可用时，**停止该项派发并报告原始原因**，不静默换档，不以继承模型绕过显式选择。`fork` 类型永远跟父模型，不能用来规避本表。
+  - Claude Code 的职责档位与可用模型、宿主限制冲突，或模型不可用时，停止该项派发并报告原始原因。`fork` 类型沿用父模型，适用同一角色表。
+  - 非 AWS Codex 的主代理、全部子代理及递归子代理按 **GPT-6.2 → GPT-6.1 → GPT-6** 选择同角色中当前宿主实际可用的最高代际。主代理沿用用户所选模型族；通用、规划、写入、运行与审查子代理用 Sol，依次检查 `gpt-6.2-sol`、`gpt-6.1-sol`、`gpt-6-sol`。探索类子代理用 Luna，当前只有 `gpt-6-luna`。全部同角色候选均不可用时停止受影响工作并报告原始原因。禁止跨角色替代以及使用 GPT-5.6 或其他系列。子代理职责档位不得高于本次用户主请求，代际按同角色优先级独立判断。启动、派发与续接前核对实际绑定。
   - Claude 子代理不规定推理强度（非 AWS Codex 非 Luna 子代理默认 `medium`、允许更高，Luna 固定 `high`；AWS Codex 全部 `ultra`，这些要求均不适用于 Claude）。
   - 非 AWS Codex 的所有角色子代理及任意层级的递归子代理，除 Luna 外默认 `medium`、允许 `medium` 或更高，Luna 固定 `high`；主代理不受此项约束。每次派发显式指定 `model` 和 `reasoning_effort`，非 Luna 默认 `reasoning_effort="medium"`，Luna 必须 `reasoning_effort="high"`；全历史 fork 无法覆盖时使用 `fork_turns="none"` 并提供自含说明。无法设置或确认时停止该项派发并报告，不依赖默认值或继承规避要求。此为跨仓库通用规则，取代原非 AWS 子代理最低 `high` 的要求，AWS 的 Astra + ultra 规则保持原样。
 - **生命周期：同一决策点按批并发派出、一次性交回**：独立任务在同一条消息里发出全部 Agent 调用；一份结果交回即结束，下一决策点按需新派一批，不搭长期代理网络。`SendMessage` 只用于续接被中断、只差一步或审查失败需续改的同一代理。串行依赖不并行。数量按宿主容量（`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` 与 `CLAUDE_CODE_WORKFLOW_MAX_CONCURRENT_AGENTS` 均设 256，2026-11-15 由 512 改为 256（512 实测未生效、退回默认 16），256 尚未实测，见正本 `CLAUDE.md`），满额报 `Concurrent subagent limit reached` 时等已派批次返回，不忙重试；多开只缩短等待，用量仍计入主会话额度。
