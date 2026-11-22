@@ -100,6 +100,7 @@
 7. 对可能「进程活着却永不产出」的任务，过滤词里还要加上其缺陷特征字符串，不能只盯 `EXIT_CODE=`。
 8. Monitor 不可用时如实说明，改用宿主支持的等待／通知机制，不声称已挂载。
 9. **过滤词覆盖中文报错与项目拒绝语（2026-11-12）**：至少含 `拒绝|失败|FAIL|错误|找不到|EXIT_CODE=`，并先 grep 入口与 runner 的 `echo`／`print`／`raise` 文案补全；日志改名、清理或重跑前先 `TaskStop` 同一路径上的旧 Monitor（`tail -F` 跟文件名，新旧事件会混报）；Monitor 到期截断吐出的空 `EXIT_CODE=` 残片不是退出码，回日志核对完整 `EXIT_CODE=<数字>`；超过预期首个事件时间一半仍无事件就主动查日志尾与进程。实测：漏掉「拒绝覆盖本轮日志」空等约 30 分钟（policy 仓 wanraw9-s32）。
+10. **长任务（尤其训练）挂每小时兜底巡检（2026-11-22）**：预计超过 1 小时的训练／评估／建库／触发链，除日志 Monitor 外用 `CronCreate` 挂每小时一次的巡检（避开 :00／:30），跑只读健康脚本输出 `HEALTH=OK|ALERT`：核 tmux 存活、日志 FAIL／拒绝／失败／Traceback／非 0 `EXIT_CODE=`、训练日志久无更新（静默卡死）、训练期 GPU 空转；ALERT 即查即修并 `PushNotification` 告警，OK 时确认 Monitor 仍在；任务结束 `CronDelete`。单次等待（`grep -m1`）不得作唯一信号。实测：o16s16 触发链 FAIL 被 `grep -m1` 漏报，GPU 空转约 12.5 h（policy 仓，2026-11-22）。
 
 ### git 提交纪律（`AGENTS.md` 第 11 条摘录）
 
